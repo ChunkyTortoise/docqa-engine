@@ -1,0 +1,80 @@
+TechCorp Solutions - Employee Handbook (Abridged)
+
+SECTION 1: REMOTE WORK POLICY
+
+1.1 Eligibility
+All full-time employees who have completed their 90-day probationary period are eligible for remote work. Contractors and part-time employees may request remote work on a case-by-case basis with manager approval.
+
+1.2 Work Schedule
+Remote employees must maintain core hours of 10:00 AM - 3:00 PM Pacific Time for collaboration. Outside core hours, employees may flex their schedule to complete their required 40 hours per week. All schedule changes must be communicated to your direct manager and team.
+
+1.3 Equipment
+TechCorp provides the following equipment for remote work:
+- Laptop (MacBook Pro or equivalent, refreshed every 3 years)
+- External monitor (up to 27")
+- Keyboard and mouse
+- $500 annual stipend for home office improvements
+Employees are responsible for maintaining a reliable internet connection (minimum 50 Mbps download).
+
+1.4 Communication Standards
+- Respond to Slack messages within 2 hours during core hours
+- Camera-on for all client meetings and team standups
+- Use async communication (Notion, Slack threads) for non-urgent items
+- Weekly 1:1 with direct manager (30 minutes minimum)
+
+SECTION 2: PAID TIME OFF
+
+2.1 PTO Allocation
+- Years 1-3: 15 days PTO + 5 sick days + 10 company holidays
+- Years 4-7: 20 days PTO + 5 sick days + 10 company holidays
+- Years 8+: 25 days PTO + 5 sick days + 10 company holidays
+
+2.2 PTO Request Process
+- Requests of 3+ consecutive days require 2 weeks advance notice
+- Requests of 5+ consecutive days require 4 weeks advance notice
+- Holiday blackout periods: Last 2 weeks of December require VP approval
+- PTO does not roll over; unused days are forfeited on January 1
+
+2.3 Sick Leave
+Sick leave does not require advance notice. Notify your manager by 9:00 AM PT on the day of absence. Doctor's note required for absences of 3+ consecutive days.
+
+SECTION 3: PROFESSIONAL DEVELOPMENT
+
+3.1 Education Budget
+Each employee receives $3,000 per calendar year for professional development:
+- Online courses and certifications
+- Conference attendance (registration + travel)
+- Books and learning materials
+- Professional association memberships
+
+3.2 Certification Bonus
+Employees who complete job-relevant certifications receive a one-time bonus:
+- Industry certification (AWS, GCP, Azure): $1,000
+- Specialized AI/ML certification: $1,500
+- Advanced degree completion: $5,000
+
+3.3 Internal Training
+- Monthly tech talks (attendance encouraged, not required)
+- Quarterly hackathons (2-day events, participation optional)
+- Annual company retreat (3-day offsite, attendance required)
+
+SECTION 4: PERFORMANCE REVIEW
+
+4.1 Review Cycle
+- Q1: Goal setting and development plan
+- Q2: Mid-year check-in (informal)
+- Q3: Self-assessment and peer feedback collection
+- Q4: Annual performance review and compensation adjustment
+
+4.2 Rating Scale
+- Exceeds Expectations: Top 10% performer, eligible for promotion
+- Meets Expectations: Consistent high-quality work, standard raise (3-5%)
+- Needs Improvement: Performance improvement plan (PIP), 90-day timeline
+- Below Expectations: Immediate PIP with 60-day timeline
+
+4.3 Promotion Criteria
+Promotions are based on:
+- Consistent "Exceeds Expectations" rating for 2+ consecutive reviews
+- Demonstrated impact beyond current role scope
+- Manager recommendation and skip-level approval
+- Budget availability in the department

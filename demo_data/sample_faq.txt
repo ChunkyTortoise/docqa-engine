@@ -1,0 +1,59 @@
+Company FAQ - TechCorp Solutions
+
+Q: What does TechCorp Solutions do?
+A: TechCorp Solutions is a software consulting firm specializing in AI-powered business automation. Founded in 2020, we help mid-market companies (50-500 employees) modernize their operations through custom software, data analytics, and machine learning solutions.
+
+Q: What industries does TechCorp serve?
+A: We primarily serve real estate, financial services, healthcare, and e-commerce industries. Our solutions include CRM integrations, predictive analytics dashboards, and conversational AI systems.
+
+Q: What is TechCorp's pricing model?
+A: We offer three pricing tiers:
+- Starter: $5,000/month for up to 3 integrations and basic analytics
+- Professional: $12,000/month for unlimited integrations, advanced analytics, and dedicated support
+- Enterprise: Custom pricing for full-stack development, on-premise deployment, and 24/7 SLA
+
+Q: How does the onboarding process work?
+A: Our onboarding follows a structured 4-phase approach:
+1. Discovery (Week 1-2): We audit your current systems, interview stakeholders, and document requirements
+2. Design (Week 3-4): Architecture review, prototype development, and stakeholder sign-off
+3. Build (Week 5-12): Agile development with weekly demos and continuous integration
+4. Launch (Week 13-14): Staged rollout, monitoring setup, and knowledge transfer
+
+Q: What is TechCorp's data security policy?
+A: We follow SOC 2 Type II compliance standards. All data is encrypted at rest (AES-256) and in transit (TLS 1.3). We conduct quarterly penetration testing and annual security audits. Customer data is never used for model training. PII is anonymized in non-production environments.
+
+Q: Does TechCorp offer a satisfaction guarantee?
+A: Yes. We offer a 30-day satisfaction guarantee on all new engagements. If the deliverables don't meet the agreed-upon acceptance criteria within the first 30 days, we'll refund the first month's fee or rework the deliverables at no additional cost.
+
+Q: What LLM providers does TechCorp use?
+A: We use a multi-provider approach for resilience:
+- Claude (Anthropic): Primary provider for reasoning-heavy tasks
+- Gemini (Google): Used for long-context analysis and multimodal processing
+- OpenAI GPT-4: Fallback provider for general-purpose tasks
+- Perplexity: Used for real-time information retrieval with citations
+All providers are abstracted behind our AgentForge orchestration layer, allowing seamless failover.
+
+Q: How does TechCorp handle scaling?
+A: Our infrastructure is designed for horizontal scaling:
+- Application layer: Kubernetes with auto-scaling (2-50 pods based on load)
+- Database: PostgreSQL with read replicas and connection pooling (PgBouncer)
+- Caching: Redis cluster with L1 (in-memory), L2 (Redis), and L3 (database) cache layers
+- AI inference: Rate-limited with circuit breakers and provider fallback chains
+We've successfully handled traffic spikes of 10x normal load without degradation.
+
+Q: What is TechCorp's SLA for enterprise customers?
+A: Enterprise SLA includes:
+- 99.9% uptime guarantee (43.8 minutes maximum downtime per month)
+- 15-minute response time for critical issues (P1)
+- 1-hour response time for high-priority issues (P2)
+- 4-hour response time for medium-priority issues (P3)
+- Dedicated Slack channel with on-call engineering support
+- Weekly performance reviews and monthly executive reports
+
+Q: Does TechCorp provide training?
+A: Yes, every engagement includes comprehensive training:
+- Admin training: 4-hour session covering configuration, user management, and monitoring
+- End-user training: 2-hour session with hands-on exercises and video recordings
+- Developer training: 8-hour deep dive into APIs, extensibility, and custom development
+- Documentation: Full API reference, administrator guide, and end-user manual
+Additional training sessions are available at $200/hour.
