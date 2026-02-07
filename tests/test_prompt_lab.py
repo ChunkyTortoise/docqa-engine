@@ -1,115 +1,167 @@
-"""Tests for the prompt engineering lab module."""
+"""Tests for the Prompt Template Lab (library, rendering, A/B comparison)."""
+
+from __future__ import annotations
 
 import pytest
 
+from docqa_engine.ingest import DocumentChunk
 from docqa_engine.prompt_lab import (
-    ABTestResult,
-    EvalScore,
-    ExperimentResult,
-    PromptLab,
-    PromptVersion,
+    PromptComparison,
+    PromptLibrary,
+    PromptTemplate,
+    compare_prompts,
 )
+from docqa_engine.retriever import SearchResult
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
 
 
-@pytest.fixture
-def lab():
-    lab = PromptLab()
-    v1 = lab.create_version(
-        "concise", "Answer briefly: {context}\nQ: {question}\nA:", temperature=0.3
-    )
-    v2 = lab.create_version(
-        "detailed", "Provide a detailed answer with examples: {context}\nQ: {question}\nA:",
-        temperature=0.7,
-    )
-    return lab, v1, v2
+@pytest.fixture()
+def library() -> PromptLibrary:
+    """A fresh PromptLibrary (includes 5 built-in templates)."""
+    return PromptLibrary()
 
 
-class TestPromptVersion:
-    def test_create(self, lab):
-        lab_obj, v1, v2 = lab
-        assert v1.name == "concise"
-        assert v2.name == "detailed"
-        assert v1.temperature == 0.3
-        assert v1.created_at
+@pytest.fixture()
+def search_results() -> list[SearchResult]:
+    """Minimal search results for compare_prompts tests."""
+    chunks = [
+        DocumentChunk(
+            chunk_id="c1",
+            document_id="d1",
+            content="Home prices rose 12% year-over-year.",
+            metadata={"source": "report.pdf"},
+            page_number=1,
+        ),
+    ]
+    return [
+        SearchResult(chunk=chunks[0], score=0.9, rank=1, source="hybrid"),
+    ]
 
-    def test_version_id(self, lab):
-        lab_obj, v1, v2 = lab
-        assert v1.version_id != v2.version_id
 
-    def test_list_versions(self, lab):
-        lab_obj, _, _ = lab
-        versions = lab_obj.list_versions()
-        assert len(versions) == 2
+# ---------------------------------------------------------------------------
+# PromptTemplate dataclass
+# ---------------------------------------------------------------------------
 
 
-class TestRenderPrompt:
-    def test_basic(self, lab):
-        lab_obj, v1, _ = lab
-        rendered = lab_obj.render_prompt(v1.version_id, context="Some context", question="What?")
-        assert "Some context" in rendered
+class TestPromptTemplate:
+    """Tests for PromptTemplate auto-variable extraction and fields."""
+
+    def test_auto_extracts_variables(self) -> None:
+        pt = PromptTemplate(name="test", template="Hello {name}, welcome to {place}!")
+        assert "name" in pt.variables
+        assert "place" in pt.variables
+
+    def test_no_duplicates_in_variables(self) -> None:
+        pt = PromptTemplate(name="dup", template="{x} and {x} and {y}")
+        assert pt.variables == ["x", "y"]
+
+    def test_explicit_variables_not_overridden(self) -> None:
+        pt = PromptTemplate(name="explicit", template="{a} {b}", variables=["a", "b", "c"])
+        assert pt.variables == ["a", "b", "c"]
+
+    def test_description_default(self) -> None:
+        pt = PromptTemplate(name="t", template="T")
+        assert pt.description == ""
+
+
+# ---------------------------------------------------------------------------
+# PromptLibrary
+# ---------------------------------------------------------------------------
+
+
+class TestPromptLibrary:
+    """Tests for the template library with built-in templates."""
+
+    def test_has_five_builtin_templates(self, library: PromptLibrary) -> None:
+        templates = library.list_templates()
+        assert len(templates) == 5
+
+    def test_builtin_names(self, library: PromptLibrary) -> None:
+        names = {t.name for t in library.list_templates()}
+        expected = {"qa_concise", "qa_detailed", "summarize", "extract_facts", "compare"}
+        assert names == expected
+
+    def test_list_templates_returns_prompt_templates(self, library: PromptLibrary) -> None:
+        templates = library.list_templates()
+        assert all(isinstance(t, PromptTemplate) for t in templates)
+
+    def test_get_template_returns_correct(self, library: PromptLibrary) -> None:
+        t = library.get_template("qa_concise")
+        assert isinstance(t, PromptTemplate)
+        assert t.name == "qa_concise"
+
+    def test_get_template_unknown_raises(self, library: PromptLibrary) -> None:
+        with pytest.raises(KeyError, match="not found"):
+            library.get_template("nonexistent_template")
+
+    def test_render_substitutes_variables(self, library: PromptLibrary) -> None:
+        rendered = library.render("qa_concise", context="Some context here.", question="What?")
+        assert "Some context here." in rendered
         assert "What?" in rendered
 
-    def test_missing_version(self, lab):
-        lab_obj, _, _ = lab
-        with pytest.raises(ValueError, match="not found"):
-            lab_obj.render_prompt("nonexistent", context="", question="")
+    def test_render_missing_variable_raises(self, library: PromptLibrary) -> None:
+        with pytest.raises(KeyError):
+            library.render("qa_concise")  # missing context and question
 
-
-class TestEvalScore:
-    def test_overall_calculation(self):
-        score = EvalScore(faithfulness=0.8, relevance=0.9, completeness=0.7)
-        assert abs(score.overall - 0.8) < 0.01
-
-    def test_perfect_score(self):
-        score = EvalScore(faithfulness=1.0, relevance=1.0, completeness=1.0)
-        assert score.overall == 1.0
-
-
-class TestRecordResult:
-    def test_basic(self, lab):
-        lab_obj, v1, _ = lab
-        result = lab_obj.record_result(
-            v1.version_id, "What is Python?", "A programming language.",
-            faithfulness=0.9, relevance=0.85, completeness=0.8,
+    def test_add_custom_template(self, library: PromptLibrary) -> None:
+        pt = library.add_template(
+            "custom_qa",
+            "Custom: {context}\nQ: {question}\nA:",
+            description="My custom template",
         )
-        assert isinstance(result, ExperimentResult)
-        assert result.eval_score.overall > 0
+        assert isinstance(pt, PromptTemplate)
+        assert library.get_template("custom_qa").name == "custom_qa"
+        assert len(library.list_templates()) == 6  # 5 builtins + 1 custom
 
-    def test_stats(self, lab):
-        lab_obj, v1, _ = lab
-        for i in range(5):
-            lab_obj.record_result(
-                v1.version_id, f"Q{i}", f"A{i}",
-                faithfulness=0.8 + i * 0.02, relevance=0.7, completeness=0.9,
-            )
-        stats = lab_obj.get_version_stats(v1.version_id)
-        assert stats["runs"] == 5
-        assert stats["avg_overall"] > 0
-
-    def test_no_stats(self, lab):
-        lab_obj, _, _ = lab
-        stats = lab_obj.get_version_stats("nonexistent")
-        assert stats["runs"] == 0
+    def test_add_template_overrides_existing(self, library: PromptLibrary) -> None:
+        library.add_template("qa_concise", "Override: {question}", description="overridden")
+        t = library.get_template("qa_concise")
+        assert "Override" in t.template
 
 
-class TestABTest:
-    def test_compare(self, lab):
-        lab_obj, v1, v2 = lab
-        # Record results for v1 (good)
-        for _ in range(3):
-            lab_obj.record_result(v1.version_id, "Q", "A", 0.9, 0.9, 0.9)
-        # Record results for v2 (mediocre)
-        for _ in range(3):
-            lab_obj.record_result(v2.version_id, "Q", "A", 0.5, 0.5, 0.5)
+# ---------------------------------------------------------------------------
+# compare_prompts (async)
+# ---------------------------------------------------------------------------
 
-        result = lab_obj.compare_versions(v1.version_id, v2.version_id)
-        assert isinstance(result, ABTestResult)
-        assert result.winner == v1.version_id
-        assert result.margin > 0
 
-    def test_export(self, lab):
-        lab_obj, v1, _ = lab
-        lab_obj.record_result(v1.version_id, "Q", "A", 0.8, 0.8, 0.8)
-        exported = lab_obj.export_experiments()
-        assert "faithfulness" in exported
-        assert "0.8" in exported
+class TestComparePrompts:
+    """Tests for the async prompt A/B comparison function."""
+
+    @pytest.mark.asyncio
+    async def test_returns_prompt_comparison(
+        self,
+        library: PromptLibrary,
+        search_results: list[SearchResult],
+    ) -> None:
+        result = await compare_prompts(
+            question="What is the trend?",
+            results=search_results,
+            template_a_name="qa_concise",
+            template_b_name="qa_detailed",
+            library=library,
+        )
+        assert isinstance(result, PromptComparison)
+        assert result.template_a_name == "qa_concise"
+        assert result.template_b_name == "qa_detailed"
+        assert result.question == "What is the trend?"
+
+    @pytest.mark.asyncio
+    async def test_comparison_produces_two_answers(
+        self,
+        library: PromptLibrary,
+        search_results: list[SearchResult],
+    ) -> None:
+        result = await compare_prompts(
+            question="Price trend?",
+            results=search_results,
+            template_a_name="summarize",
+            template_b_name="extract_facts",
+            library=library,
+        )
+        assert result.answer_a is not None
+        assert result.answer_b is not None
+        assert len(result.answer_a.answer_text) > 0
+        assert len(result.answer_b.answer_text) > 0

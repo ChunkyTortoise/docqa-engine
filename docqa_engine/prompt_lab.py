@@ -1,176 +1,192 @@
-"""Prompt Engineering Lab: versioning, A/B testing, evaluation scoring."""
+"""Prompt Template Lab: design, test, and compare prompt strategies."""
 
 from __future__ import annotations
 
-import json
-import statistics
+import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from typing import Any
-from uuid import uuid4
+
+from docqa_engine.answer import Answer, build_context, generate_answer
+from docqa_engine.retriever import SearchResult
+
+# ---------------------------------------------------------------------------
+# Data types
+# ---------------------------------------------------------------------------
 
 
 @dataclass
-class PromptVersion:
-    version_id: str
+class PromptTemplate:
+    """A reusable prompt template with named ``{placeholder}`` variables."""
+
     name: str
     template: str
-    temperature: float = 0.7
-    max_tokens: int = 1024
-    created_at: str = ""
-    metadata: dict[str, Any] = field(default_factory=dict)
+    description: str = ""
+    variables: list[str] = field(default_factory=list)
 
-    def __post_init__(self):
-        if not self.created_at:
-            self.created_at = datetime.now(timezone.utc).isoformat()
-
-
-@dataclass
-class EvalScore:
-    faithfulness: float  # 0-1: answer grounded in context
-    relevance: float  # 0-1: answer addresses the question
-    completeness: float  # 0-1: all aspects of question covered
-    overall: float = 0.0
-
-    def __post_init__(self):
-        self.overall = round(
-            (self.faithfulness + self.relevance + self.completeness) / 3, 4
-        )
+    def __post_init__(self) -> None:
+        """Auto-extract placeholder names from the template string."""
+        if not self.variables:
+            self.variables = list(dict.fromkeys(re.findall(r"\{(\w+)\}", self.template)))
 
 
 @dataclass
-class ExperimentResult:
-    version_id: str
+class PromptComparison:
+    """Side-by-side comparison of two prompt template outputs."""
+
+    template_a_name: str
+    template_b_name: str
     question: str
-    answer: str
-    eval_score: EvalScore
-    provider: str = ""
-    tokens_used: int = 0
-    latency_ms: float = 0.0
+    answer_a: Answer
+    answer_b: Answer
 
 
-@dataclass
-class ABTestResult:
-    version_a: str
-    version_b: str
-    results_a: list[ExperimentResult]
-    results_b: list[ExperimentResult]
-    winner: str = ""
-    margin: float = 0.0
+# ---------------------------------------------------------------------------
+# Built-in templates
+# ---------------------------------------------------------------------------
 
-    def __post_init__(self):
-        if self.results_a and self.results_b:
-            avg_a = statistics.mean(r.eval_score.overall for r in self.results_a)
-            avg_b = statistics.mean(r.eval_score.overall for r in self.results_b)
-            self.margin = round(abs(avg_a - avg_b), 4)
-            self.winner = self.version_a if avg_a >= avg_b else self.version_b
+_BUILTINS: dict[str, tuple[str, str]] = {
+    "qa_concise": (
+        "Answer the question briefly and cite your sources.\n\n"
+        "Context:\n{context}\n\n"
+        "Question: {question}\n\n"
+        "Provide a concise answer with source references:",
+        "Brief answer with citations",
+    ),
+    "qa_detailed": (
+        "You are a knowledgeable research assistant. Analyze the provided context "
+        "thoroughly and give a detailed answer with analysis and source references.\n\n"
+        "Context:\n{context}\n\n"
+        "Question: {question}\n\n"
+        "Provide a thorough, well-structured answer:",
+        "Thorough answer with analysis and source references",
+    ),
+    "summarize": (
+        "Summarize the following context clearly and concisely. "
+        "Highlight the most important points.\n\n"
+        "Context:\n{context}\n\n"
+        "Topic/Focus: {question}\n\n"
+        "Summary:",
+        "Summarize the context",
+    ),
+    "extract_facts": (
+        "Extract the key facts from the context below as bullet points. "
+        "Each fact should be specific and verifiable.\n\n"
+        "Context:\n{context}\n\n"
+        "Topic: {question}\n\n"
+        "Key facts:",
+        "Extract key facts as bullet points",
+    ),
+    "compare": (
+        "Compare the information provided across different sources in the context. "
+        "Note agreements, contradictions, and unique contributions from each source.\n\n"
+        "Context:\n{context}\n\n"
+        "Comparison focus: {question}\n\n"
+        "Comparison:",
+        "Compare information across sources",
+    ),
+}
 
 
-class PromptLab:
-    """Prompt versioning and experimentation framework."""
+# ---------------------------------------------------------------------------
+# Prompt Library
+# ---------------------------------------------------------------------------
 
-    def __init__(self):
-        self.versions: dict[str, PromptVersion] = {}
-        self.experiments: list[ExperimentResult] = []
 
-    def create_version(
-        self, name: str, template: str, temperature: float = 0.7, max_tokens: int = 1024, **kwargs
-    ) -> PromptVersion:
-        """Create a new prompt version."""
-        version = PromptVersion(
-            version_id=str(uuid4())[:8],
-            name=name,
-            template=template,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            metadata=kwargs,
-        )
-        self.versions[version.version_id] = version
-        return version
+class PromptLibrary:
+    """Collection of prompt templates with five built-in strategies.
 
-    def get_version(self, version_id: str) -> PromptVersion | None:
-        return self.versions.get(version_id)
+    Built-in templates: ``qa_concise``, ``qa_detailed``, ``summarize``,
+    ``extract_facts``, ``compare``.  All use ``{context}`` and ``{question}``
+    placeholders.
+    """
 
-    def list_versions(self) -> list[PromptVersion]:
-        return list(self.versions.values())
+    def __init__(self) -> None:
+        self._templates: dict[str, PromptTemplate] = {}
+        for name, (template, desc) in _BUILTINS.items():
+            self._templates[name] = PromptTemplate(name=name, template=template, description=desc)
 
-    def render_prompt(self, version_id: str, **kwargs) -> str:
-        """Render a prompt template with variables."""
-        version = self.versions.get(version_id)
-        if not version:
-            raise ValueError(f"Version {version_id} not found")
-        return version.template.format(**kwargs)
+    def add_template(self, name: str, template: str, description: str = "") -> PromptTemplate:
+        """Register a custom prompt template."""
+        pt = PromptTemplate(name=name, template=template, description=description)
+        self._templates[name] = pt
+        return pt
 
-    def record_result(
-        self,
-        version_id: str,
-        question: str,
-        answer: str,
-        faithfulness: float,
-        relevance: float,
-        completeness: float,
-        provider: str = "",
-        tokens_used: int = 0,
-        latency_ms: float = 0.0,
-    ) -> ExperimentResult:
-        """Record an experiment result."""
-        result = ExperimentResult(
-            version_id=version_id,
-            question=question,
-            answer=answer,
-            eval_score=EvalScore(
-                faithfulness=faithfulness, relevance=relevance, completeness=completeness
-            ),
-            provider=provider,
-            tokens_used=tokens_used,
-            latency_ms=latency_ms,
-        )
-        self.experiments.append(result)
-        return result
+    def get_template(self, name: str) -> PromptTemplate:
+        """Retrieve a template by name, raising ``KeyError`` if missing."""
+        if name not in self._templates:
+            raise KeyError(f"Template '{name}' not found. Available: {list(self._templates)}")
+        return self._templates[name]
 
-    def get_version_stats(self, version_id: str) -> dict[str, Any]:
-        """Get aggregated stats for a prompt version."""
-        results = [e for e in self.experiments if e.version_id == version_id]
-        if not results:
-            return {"version_id": version_id, "runs": 0}
+    def render(self, name: str, **kwargs: Any) -> str:
+        """Render a template by substituting its placeholder variables."""
+        template = self.get_template(name)
+        try:
+            return template.template.format(**kwargs)
+        except KeyError as exc:
+            raise KeyError(f"Missing variable {exc} for template '{name}'. Required: {template.variables}") from exc
 
-        scores = [r.eval_score.overall for r in results]
-        return {
-            "version_id": version_id,
-            "runs": len(results),
-            "avg_overall": round(statistics.mean(scores), 4),
-            "min_overall": round(min(scores), 4),
-            "max_overall": round(max(scores), 4),
-            "std_overall": round(statistics.stdev(scores), 4) if len(scores) > 1 else 0.0,
-            "avg_tokens": round(statistics.mean(r.tokens_used for r in results)),
-            "avg_latency_ms": round(statistics.mean(r.latency_ms for r in results), 1),
-        }
+    def list_templates(self) -> list[PromptTemplate]:
+        """Return all registered templates."""
+        return list(self._templates.values())
 
-    def compare_versions(self, version_a_id: str, version_b_id: str) -> ABTestResult:
-        """Compare two prompt versions based on recorded experiments."""
-        results_a = [e for e in self.experiments if e.version_id == version_a_id]
-        results_b = [e for e in self.experiments if e.version_id == version_b_id]
-        return ABTestResult(
-            version_a=version_a_id,
-            version_b=version_b_id,
-            results_a=results_a,
-            results_b=results_b,
-        )
 
-    def export_experiments(self) -> str:
-        """Export all experiments as JSON."""
-        data = []
-        for e in self.experiments:
-            data.append({
-                "version_id": e.version_id,
-                "question": e.question,
-                "answer": e.answer[:200],
-                "faithfulness": e.eval_score.faithfulness,
-                "relevance": e.eval_score.relevance,
-                "completeness": e.eval_score.completeness,
-                "overall": e.eval_score.overall,
-                "provider": e.provider,
-                "tokens_used": e.tokens_used,
-                "latency_ms": e.latency_ms,
-            })
-        return json.dumps(data, indent=2)
+# ---------------------------------------------------------------------------
+# Prompt comparison
+# ---------------------------------------------------------------------------
+
+
+def _make_prompt_override(rendered: str, original_fn: Any) -> Any:
+    """Wrap an llm_fn so it substitutes a pre-rendered prompt."""
+    if original_fn is None:
+        return None
+
+    async def wrapper(prompt: str, provider: str) -> tuple:
+        return await original_fn(rendered, provider)
+
+    return wrapper
+
+
+async def compare_prompts(
+    question: str,
+    results: list[SearchResult],
+    template_a_name: str,
+    template_b_name: str,
+    library: PromptLibrary,
+    llm_fn: Any = None,
+) -> PromptComparison:
+    """Run the same query with two different templates and compare answers.
+
+    Uses :func:`generate_answer` from *answer.py* internally but overrides the
+    prompt via template rendering so each answer reflects a different strategy.
+
+    Args:
+        question: The user's question.
+        results: Search results from the retriever.
+        template_a_name: First template name (from *library*).
+        template_b_name: Second template name (from *library*).
+        library: ``PromptLibrary`` containing both templates.
+        llm_fn: Async LLM callable, or ``None`` for mock mode.
+    """
+    context = build_context(results)
+
+    rendered_a = library.render(template_a_name, context=context, question=question)
+    rendered_b = library.render(template_b_name, context=context, question=question)
+
+    answer_a = await generate_answer(
+        question,
+        results,
+        llm_fn=_make_prompt_override(rendered_a, llm_fn),
+    )
+    answer_b = await generate_answer(
+        question,
+        results,
+        llm_fn=_make_prompt_override(rendered_b, llm_fn),
+    )
+
+    return PromptComparison(
+        template_a_name=template_a_name,
+        template_b_name=template_b_name,
+        question=question,
+        answer_a=answer_a,
+        answer_b=answer_b,
+    )

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import csv
-import io
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -74,9 +73,7 @@ def ingest_txt(content: str, filename: str = "document.txt", **kwargs) -> Ingest
         for text, offset in raw_chunks
     ]
 
-    return IngestResult(
-        document_id=doc_id, filename=filename, chunks=chunks, total_chars=len(content)
-    )
+    return IngestResult(document_id=doc_id, filename=filename, chunks=chunks, total_chars=len(content))
 
 
 def ingest_pdf(file_path: str | Path, **kwargs) -> IngestResult:
@@ -146,9 +143,7 @@ def ingest_docx(file_path: str | Path, **kwargs) -> IngestResult:
         for text, offset in raw_chunks
     ]
 
-    return IngestResult(
-        document_id=doc_id, filename=filename, chunks=chunks, total_chars=len(full_text)
-    )
+    return IngestResult(document_id=doc_id, filename=filename, chunks=chunks, total_chars=len(full_text))
 
 
 def ingest_csv(file_path: str | Path, **kwargs) -> IngestResult:
@@ -173,9 +168,7 @@ def ingest_csv(file_path: str | Path, **kwargs) -> IngestResult:
         )
 
     total_chars = sum(len(c.content) for c in chunks)
-    return IngestResult(
-        document_id=doc_id, filename=filename, chunks=chunks, total_chars=total_chars
-    )
+    return IngestResult(document_id=doc_id, filename=filename, chunks=chunks, total_chars=total_chars)
 
 
 def ingest_file(file_path: str | Path, **kwargs) -> IngestResult:

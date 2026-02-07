@@ -5,8 +5,7 @@ from __future__ import annotations
 import math
 import re
 from collections import defaultdict
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -85,7 +84,8 @@ class BM25Index:
         indexed = sorted(enumerate(scores), key=lambda x: x[1], reverse=True)[:top_k]
         return [
             SearchResult(chunk=self.chunks[i], score=s, rank=rank + 1, source="bm25")
-            for rank, (i, s) in enumerate(indexed) if s > 0
+            for rank, (i, s) in enumerate(indexed)
+            if s > 0
         ]
 
 
@@ -123,19 +123,20 @@ class DenseIndex:
 
         return [
             SearchResult(
-                chunk=self.chunks[i], score=float(similarities[i]),
-                rank=rank + 1, source="dense",
+                chunk=self.chunks[i],
+                score=float(similarities[i]),
+                rank=rank + 1,
+                source="dense",
             )
-            for rank, i in enumerate(top_indices) if similarities[i] > 0
+            for rank, i in enumerate(top_indices)
+            if similarities[i] > 0
         ]
 
 
 # ---------- Hybrid (RRF) ----------
 
 
-def reciprocal_rank_fusion(
-    result_lists: list[list[SearchResult]], k: int = 60, top_k: int = 10
-) -> list[SearchResult]:
+def reciprocal_rank_fusion(result_lists: list[list[SearchResult]], k: int = 60, top_k: int = 10) -> list[SearchResult]:
     """Combine multiple ranked lists using Reciprocal Rank Fusion."""
     chunk_scores: dict[str, float] = defaultdict(float)
     chunk_map: dict[str, DocumentChunk] = {}
