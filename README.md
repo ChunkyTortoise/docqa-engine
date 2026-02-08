@@ -7,6 +7,8 @@
 [![Tests](https://img.shields.io/badge/tests-94_passing-brightgreen)](tests/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F1C40F.svg)](LICENSE)
 
+**[Live Demo](https://ct-document-engine.streamlit.app)** -- try it without installing anything.
+
 ## Problem Statement
 
 Teams waste hours searching through documents for answers. Knowledge is scattered across PDFs, Word docs, text files, and CSVs. When someone asks a question, the answer requires reading multiple sources, cross-referencing sections, and summarizing findings manually. There is no single tool that ingests documents, retrieves the most relevant passages, generates cited answers, and lets you experiment with different prompt strategies to improve quality.
@@ -52,6 +54,8 @@ pip install -r requirements.txt
 # Demo mode -- 3 sample documents, no config needed
 make demo
 ```
+
+Or try the **[live demo on Streamlit Cloud](https://ct-document-engine.streamlit.app)** -- no installation required.
 
 ## Core Features
 
