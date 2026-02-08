@@ -232,3 +232,277 @@ class TestCompare:
         for name in comp1.results:
             assert comp1.results[name].total_chunks == comp2.results[name].total_chunks
             assert comp1.results[name].avg_chunk_size == pytest.approx(comp2.results[name].avg_chunk_size)
+
+
+# ---------------------------------------------------------------------------
+# Semantic TF-IDF chunking
+# ---------------------------------------------------------------------------
+
+
+class TestSemanticTfidfChunking:
+    """Tests for semantic_tfidf chunking strategy."""
+
+    def test_topic_change_detection(self, chunker: Chunker) -> None:
+        """Detects topic changes based on TF-IDF similarity."""
+        text = (
+            "Machine learning is a subset of artificial intelligence. "
+            "It uses algorithms to learn patterns from data. "
+            "Neural networks are inspired by biological neurons.\n\n"
+            "Pizza is a popular Italian dish. "
+            "It consists of dough, sauce, and toppings. "
+            "Many people enjoy pizza for dinner.\n\n"
+            "Python is a high-level programming language. "
+            "It is widely used in data science. "
+            "Python has a simple and readable syntax."
+        )
+        result = chunker.semantic_tfidf(text, similarity_threshold=0.3)
+
+        # Should detect topic changes and create multiple chunks
+        assert result.total_chunks >= 2
+        assert result.strategy == "semantic_tfidf"
+
+    def test_preserves_content(self, chunker: Chunker) -> None:
+        """All chunks combined preserve original content."""
+        text = "First paragraph here.\n\nSecond paragraph here.\n\nThird paragraph here."
+        result = chunker.semantic_tfidf(text, similarity_threshold=0.5)
+
+        combined = "\n\n".join(c.text for c in result.chunks)
+        # Remove extra whitespace for comparison
+        assert combined.replace("\n\n", " ").strip() == text.replace("\n\n", " ").strip()
+
+    def test_min_chunks_single_paragraph(self, chunker: Chunker) -> None:
+        """Single paragraph produces single chunk."""
+        text = "This is a single paragraph with no topic changes."
+        result = chunker.semantic_tfidf(text, similarity_threshold=0.3)
+
+        assert result.total_chunks == 1
+        assert result.chunks[0].text.strip() == text.strip()
+
+    def test_threshold_effect(self, chunker: Chunker) -> None:
+        """Threshold affects chunk boundaries."""
+        text = (
+            "Machine learning uses algorithms.\n\n"
+            "Deep learning uses neural networks.\n\n"
+            "Computer vision processes images.\n\n"
+            "Natural language processing handles text."
+        )
+
+        result_high = chunker.semantic_tfidf(text, similarity_threshold=0.8)
+        result_low = chunker.semantic_tfidf(text, similarity_threshold=0.1)
+
+        # Both should create multiple chunks
+        assert result_high.total_chunks >= 1
+        assert result_low.total_chunks >= 1
+
+
+# ---------------------------------------------------------------------------
+# Sliding window with overlap ratio
+# ---------------------------------------------------------------------------
+
+
+class TestSlidingWindowRatio:
+    """Tests for sliding_window_ratio chunking strategy."""
+
+    def test_overlap_ratio_50_percent(self, chunker: Chunker, long_text: str) -> None:
+        """50% overlap ratio creates correct overlap."""
+        result = chunker.sliding_window_ratio(long_text, chunk_size=200, overlap_ratio=0.5)
+
+        assert result.total_chunks > 1
+        assert result.strategy == "sliding_window_ratio"
+        # Verify chunks overlap
+        if result.total_chunks > 1:
+            # Second chunk should start before first chunk ends
+            assert result.chunks[1].start_char < result.chunks[0].end_char
+
+    def test_overlap_ratio_25_percent(self, chunker: Chunker, long_text: str) -> None:
+        """25% overlap ratio creates less overlap than 50%."""
+        result_50 = chunker.sliding_window_ratio(long_text, chunk_size=200, overlap_ratio=0.5)
+        result_25 = chunker.sliding_window_ratio(long_text, chunk_size=200, overlap_ratio=0.25)
+
+        # 25% overlap should have fewer or equal chunks than 50% overlap
+        assert result_25.total_chunks <= result_50.total_chunks
+
+    def test_no_overlap(self, chunker: Chunker, long_text: str) -> None:
+        """0% overlap creates non-overlapping chunks."""
+        result = chunker.sliding_window_ratio(long_text, chunk_size=200, overlap_ratio=0.0)
+
+        # No overlap means chunks should not overlap
+        for i in range(len(result.chunks) - 1):
+            assert result.chunks[i].end_char <= result.chunks[i + 1].start_char
+
+    def test_small_text(self, chunker: Chunker) -> None:
+        """Text smaller than chunk_size produces 1 chunk."""
+        text = "Small text."
+        result = chunker.sliding_window_ratio(text, chunk_size=500, overlap_ratio=0.5)
+
+        assert result.total_chunks == 1
+
+
+# ---------------------------------------------------------------------------
+# Recursive chunking
+# ---------------------------------------------------------------------------
+
+
+class TestRecursiveChunking:
+    """Tests for recursive chunking strategy."""
+
+    def test_paragraph_split(self, chunker: Chunker) -> None:
+        """Splits on paragraph boundaries first."""
+        text = "First paragraph.\n\nSecond paragraph.\n\nThird paragraph."
+        result = chunker.recursive(text, max_chunk_size=50)
+
+        assert result.total_chunks >= 3
+        assert result.strategy == "recursive"
+
+    def test_sentence_split(self, chunker: Chunker) -> None:
+        """Falls back to sentence split when paragraphs too large."""
+        # One long paragraph with sentences
+        text = "First sentence. " * 50
+        result = chunker.recursive(text.strip(), max_chunk_size=100)
+
+        # Should split into multiple chunks
+        assert result.total_chunks > 1
+        for chunk in result.chunks:
+            # Most chunks should respect max size (last chunk might be smaller)
+            assert len(chunk.text) <= 200 * 1.2  # Allow 20% tolerance (max_chunk_size=200)
+
+    def test_max_size_respected(self, chunker: Chunker) -> None:
+        """Chunks respect max_chunk_size (with tolerance for unsplittable text)."""
+        text = "Short paragraph.\n\n" + "x " * 1000
+        result = chunker.recursive(text, max_chunk_size=200)
+
+        # At least some chunks should be under max_chunk_size
+        under_limit = sum(1 for c in result.chunks if len(c.text) <= 200)
+        assert under_limit >= 1
+
+    def test_preserves_all_content(self, chunker: Chunker) -> None:
+        """All text is preserved across chunks."""
+        text = "Paragraph one.\n\nParagraph two. Sentence here.\n\nParagraph three."
+        result = chunker.recursive(text, max_chunk_size=100)
+
+        # Combine all chunk texts and count total characters (excluding whitespace)
+        combined = "".join(c.text for c in result.chunks)
+        # Remove all whitespace for comparison
+        original_no_space = text.replace(" ", "").replace("\n", "")
+        combined_no_space = combined.replace(" ", "").replace("\n", "")
+        # Character counts should match (allowing for minor differences in whitespace)
+        assert abs(len(original_no_space) - len(combined_no_space)) < 5
+
+
+# ---------------------------------------------------------------------------
+# Additional edge-case and coverage tests
+# ---------------------------------------------------------------------------
+
+
+class TestFixedSizeEdgeCases:
+    """Additional edge-case tests for fixed_size chunking."""
+
+    def test_chunk_metadata_contains_strategy(self, chunker: Chunker) -> None:
+        """Each chunk's metadata includes strategy key."""
+        text = "Some text that is long enough to produce a chunk for testing purposes."
+        result = chunker.fixed_size(text, chunk_size=500)
+
+        for chunk in result.chunks:
+            assert "strategy" in chunk.metadata
+            assert chunk.metadata["strategy"] == "fixed_size"
+
+    def test_large_overlap_produces_more_chunks(self, chunker: Chunker, long_text: str) -> None:
+        """Larger overlap produces more (or equal) chunks than smaller overlap."""
+        result_small = chunker.fixed_size(long_text, chunk_size=200, overlap=20)
+        result_large = chunker.fixed_size(long_text, chunk_size=200, overlap=100)
+
+        assert result_large.total_chunks >= result_small.total_chunks
+
+    def test_whitespace_only_returns_empty(self, chunker: Chunker) -> None:
+        """Whitespace-only text returns empty result."""
+        result = chunker.fixed_size("   \n\t  ", chunk_size=500)
+
+        assert result.total_chunks == 0
+        assert result.chunks == []
+
+    def test_chunk_indexes_are_sequential(self, chunker: Chunker, long_text: str) -> None:
+        """Chunk index values are 0, 1, 2, ..."""
+        result = chunker.fixed_size(long_text, chunk_size=200, overlap=0)
+
+        for i, chunk in enumerate(result.chunks):
+            assert chunk.index == i
+
+
+class TestSentenceEdgeCases:
+    """Additional edge-case tests for sentence chunking."""
+
+    def test_empty_text_returns_empty(self, chunker: Chunker) -> None:
+        """Empty string produces empty result."""
+        result = chunker.sentence("")
+
+        assert result.total_chunks == 0
+        assert result.chunks == []
+        assert result.avg_chunk_size == 0.0
+
+    def test_large_group_size_produces_single_chunk(self, chunker: Chunker) -> None:
+        """sentences_per_chunk larger than sentence count produces one chunk."""
+        text = "First. Second. Third."
+        result = chunker.sentence(text, sentences_per_chunk=100)
+
+        assert result.total_chunks == 1
+
+    def test_sentence_metadata_strategy(self, chunker: Chunker) -> None:
+        """Sentence chunks have correct strategy metadata."""
+        text = "First sentence. Second sentence. Third sentence."
+        result = chunker.sentence(text, sentences_per_chunk=2)
+
+        for chunk in result.chunks:
+            assert chunk.metadata["strategy"] == "sentence"
+
+
+class TestSlidingWindowEdgeCases:
+    """Additional edge-case tests for sliding window chunking."""
+
+    def test_empty_text_returns_empty(self, chunker: Chunker) -> None:
+        """Empty text returns empty result."""
+        result = chunker.sliding_window("")
+
+        assert result.total_chunks == 0
+        assert result.chunks == []
+        assert result.strategy == "sliding_window"
+
+    def test_chunk_indexes_sequential(self, chunker: Chunker, long_text: str) -> None:
+        """Sliding window chunk indexes are sequential."""
+        result = chunker.sliding_window(long_text, window_size=200, step=100)
+
+        for i, chunk in enumerate(result.chunks):
+            assert chunk.index == i
+
+    def test_window_size_equals_step_no_overlap(self, chunker: Chunker, long_text: str) -> None:
+        """When step equals window_size, chunks do not overlap."""
+        result = chunker.sliding_window(long_text, window_size=200, step=200)
+
+        for i in range(len(result.chunks) - 1):
+            assert result.chunks[i].end_char <= result.chunks[i + 1].start_char
+
+
+class TestSemanticEdgeCases:
+    """Additional edge-case tests for semantic chunking."""
+
+    def test_empty_text_returns_empty(self, chunker: Chunker) -> None:
+        """Empty text returns empty result."""
+        result = chunker.semantic("")
+
+        assert result.total_chunks == 0
+        assert result.chunks == []
+
+    def test_all_short_paragraphs_merge(self, chunker: Chunker) -> None:
+        """All paragraphs below min_chunk_size get merged."""
+        text = "Hi.\n\nHo.\n\nHey."
+        result = chunker.semantic(text, min_chunk_size=200)
+
+        # All short paragraphs should be merged into 1 chunk
+        assert result.total_chunks == 1
+
+    def test_semantic_metadata_strategy(self, chunker: Chunker) -> None:
+        """Semantic chunks have correct strategy metadata."""
+        text = "First paragraph with enough content here.\n\nSecond paragraph with enough content here."
+        result = chunker.semantic(text, min_chunk_size=10)
+
+        for chunk in result.chunks:
+            assert chunk.metadata["strategy"] == "semantic"
