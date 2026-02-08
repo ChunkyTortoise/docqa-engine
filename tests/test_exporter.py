@@ -49,9 +49,7 @@ def sample_results() -> list[QueryResult]:
 class TestJsonExport:
     """Tests for to_json."""
 
-    def test_json_export(
-        self, exporter: Exporter, sample_results: list[QueryResult], tmp_path: Path
-    ) -> None:
+    def test_json_export(self, exporter: Exporter, sample_results: list[QueryResult], tmp_path: Path) -> None:
         """Exported JSON contains metadata and all results."""
         out = tmp_path / "results.json"
         path = exporter.to_json(sample_results, str(out))
@@ -106,9 +104,7 @@ class TestJsonExport:
 class TestCsvExport:
     """Tests for to_csv."""
 
-    def test_csv_export(
-        self, exporter: Exporter, sample_results: list[QueryResult], tmp_path: Path
-    ) -> None:
+    def test_csv_export(self, exporter: Exporter, sample_results: list[QueryResult], tmp_path: Path) -> None:
         """Exported CSV has correct headers and rows."""
         out = tmp_path / "results.csv"
         path = exporter.to_csv(sample_results, str(out))

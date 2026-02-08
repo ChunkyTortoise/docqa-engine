@@ -86,13 +86,15 @@ class Exporter:
             writer = csv.writer(f)
             writer.writerow(["query", "answer", "sources", "confidence", "elapsed_ms"])
             for r in results:
-                writer.writerow([
-                    r.query,
-                    r.answer,
-                    "; ".join(r.sources),
-                    r.confidence,
-                    r.elapsed_ms,
-                ])
+                writer.writerow(
+                    [
+                        r.query,
+                        r.answer,
+                        "; ".join(r.sources),
+                        r.confidence,
+                        r.elapsed_ms,
+                    ]
+                )
 
         return str(path.resolve())
 

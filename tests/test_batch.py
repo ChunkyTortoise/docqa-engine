@@ -23,8 +23,7 @@ def pipeline() -> DocQAPipeline:
 def loaded_pipeline(pipeline: DocQAPipeline) -> DocQAPipeline:
     """Pipeline with documents already ingested for query tests."""
     pipeline.ingest_text(
-        "The housing market in Rancho Cucamonga has grown steadily. "
-        "Home prices rose 12% year-over-year.",
+        "The housing market in Rancho Cucamonga has grown steadily. Home prices rose 12% year-over-year.",
         filename="market.txt",
     )
     pipeline.ingest_text(
@@ -53,9 +52,7 @@ def loaded_processor(loaded_pipeline: DocQAPipeline) -> BatchProcessor:
 class TestBatchDocuments:
     """Tests for process_documents."""
 
-    def test_batch_ingest_multiple_files(
-        self, processor: BatchProcessor, tmp_path: Path
-    ) -> None:
+    def test_batch_ingest_multiple_files(self, processor: BatchProcessor, tmp_path: Path) -> None:
         """Successfully ingest multiple text files in batch."""
         paths = []
         for i in range(3):
@@ -72,9 +69,7 @@ class TestBatchDocuments:
         assert result.errors == []
         assert result.elapsed_seconds >= 0.0
 
-    def test_partial_failure_recovery(
-        self, processor: BatchProcessor, tmp_path: Path
-    ) -> None:
+    def test_partial_failure_recovery(self, processor: BatchProcessor, tmp_path: Path) -> None:
         """One bad file should not block the rest."""
         good_file = tmp_path / "good.txt"
         good_file.write_text("Valid document content.", encoding="utf-8")
@@ -88,9 +83,7 @@ class TestBatchDocuments:
         assert len(result.errors) == 1
         assert "bad_file" in result.errors[0].item
 
-    def test_progress_callback(
-        self, processor: BatchProcessor, tmp_path: Path
-    ) -> None:
+    def test_progress_callback(self, processor: BatchProcessor, tmp_path: Path) -> None:
         """Progress callback is invoked for each file."""
         paths = []
         for i in range(2):
@@ -117,9 +110,7 @@ class TestBatchDocuments:
         assert result.failed == 0
         assert result.elapsed_seconds == 0.0
 
-    def test_single_item_batch(
-        self, processor: BatchProcessor, tmp_path: Path
-    ) -> None:
+    def test_single_item_batch(self, processor: BatchProcessor, tmp_path: Path) -> None:
         """Batch with one file works correctly."""
         p = tmp_path / "single.txt"
         p.write_text("Single doc batch test.", encoding="utf-8")

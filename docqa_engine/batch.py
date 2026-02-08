@@ -11,7 +11,6 @@ from typing import Any, Callable
 
 from docqa_engine.pipeline import DocQAPipeline
 
-
 # ---------------------------------------------------------------------------
 # Result data types
 # ---------------------------------------------------------------------------
@@ -168,13 +167,13 @@ class BatchProcessor:
             t0 = time.monotonic()
             try:
                 answer = await self._pipeline.ask(
-                    question, top_k=top_k, llm_fn=llm_fn,
+                    question,
+                    top_k=top_k,
+                    llm_fn=llm_fn,
                 )
                 elapsed_ms = (time.monotonic() - t0) * 1000
 
-                sources = [
-                    c.source for c in answer.citations if c.source
-                ]
+                sources = [c.source for c in answer.citations if c.source]
                 # Deduplicate while preserving order
                 seen: set[str] = set()
                 unique_sources: list[str] = []
@@ -183,11 +182,7 @@ class BatchProcessor:
                         seen.add(s)
                         unique_sources.append(s)
 
-                confidence = (
-                    max(c.relevance_score for c in answer.citations)
-                    if answer.citations
-                    else 0.0
-                )
+                confidence = max(c.relevance_score for c in answer.citations) if answer.citations else 0.0
 
                 result = QueryResult(
                     query=question,
