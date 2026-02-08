@@ -174,3 +174,117 @@ class TestEvaluateBatch:
                 relevant_docs=[{"d1"}, {"d2"}],
                 k=5,
             )
+
+
+# ---------------------------------------------------------------------------
+# RAGAS-style generation quality metrics
+# ---------------------------------------------------------------------------
+
+
+class TestContextRelevancy:
+    """Tests for context_relevancy scoring."""
+
+    def test_relevant_context(self, evaluator: Evaluator) -> None:
+        """Related text scores high."""
+        context = "Machine learning is a subset of artificial intelligence that enables systems to learn from data."
+        query = "What is machine learning?"
+        score = evaluator.context_relevancy(context, query)
+
+        assert score > 0.2
+
+    def test_irrelevant_context(self, evaluator: Evaluator) -> None:
+        """Unrelated text scores low."""
+        context = "Basketball players practice free throws every afternoon at the gymnasium."
+        query = "What is machine learning?"
+        score = evaluator.context_relevancy(context, query)
+
+        assert score < 0.2
+
+    def test_empty_strings(self, evaluator: Evaluator) -> None:
+        """Handles empty inputs gracefully."""
+        assert evaluator.context_relevancy("", "query") == 0.0
+        assert evaluator.context_relevancy("context", "") == 0.0
+        assert evaluator.context_relevancy("", "") == 0.0
+
+
+class TestAnswerRelevancy:
+    """Tests for answer_relevancy scoring."""
+
+    def test_relevant_answer(self, evaluator: Evaluator) -> None:
+        """On-topic answer scores high."""
+        answer = "Machine learning uses algorithms to learn patterns from data and make predictions."
+        query = "How does machine learning work?"
+        score = evaluator.answer_relevancy(answer, query)
+
+        assert score > 0.1
+
+    def test_irrelevant_answer(self, evaluator: Evaluator) -> None:
+        """Off-topic answer scores low."""
+        answer = "Chocolate cake requires flour, sugar, eggs, and cocoa powder to bake properly."
+        query = "How does machine learning work?"
+        score = evaluator.answer_relevancy(answer, query)
+
+        assert score < 0.15
+
+
+class TestFaithfulness:
+    """Tests for faithfulness scoring."""
+
+    def test_faithful_answer(self, evaluator: Evaluator) -> None:
+        """Answer derived from context scores high."""
+        context = "Python is a high-level programming language known for its readability and versatility."
+        answer = "Python is a high-level language known for readability."
+        score = evaluator.faithfulness(answer, context)
+
+        assert score > 0.7
+
+    def test_hallucinated_answer(self, evaluator: Evaluator) -> None:
+        """Unrelated answer scores low."""
+        context = "Python is a high-level programming language known for its readability and versatility."
+        answer = "Basketball requires dribbling, passing, and shooting skills to compete effectively."
+        score = evaluator.faithfulness(answer, context)
+
+        assert score < 0.2
+
+
+class TestEvaluateRAG:
+    """Tests for evaluate_rag comprehensive evaluation."""
+
+    def test_full_evaluation(self, evaluator: Evaluator) -> None:
+        """Returns all expected keys when retrieval data is provided."""
+        result = evaluator.evaluate_rag(
+            query="What is Python?",
+            context="Python is a programming language.",
+            answer="Python is a popular programming language.",
+            retrieved=["d1", "d2", "d3"],
+            relevant={"d1", "d3"},
+            k=5,
+        )
+
+        # Generation metrics
+        assert "context_relevancy" in result
+        assert "answer_relevancy" in result
+        assert "faithfulness" in result
+
+        # Retrieval metrics
+        assert "mrr" in result
+        assert "ndcg" in result
+        assert "precision" in result
+        assert "recall" in result
+        assert "hit_rate" in result
+
+    def test_without_retrieval(self, evaluator: Evaluator) -> None:
+        """Works without retrieved/relevant data, returning only generation metrics."""
+        result = evaluator.evaluate_rag(
+            query="What is Python?",
+            context="Python is a programming language.",
+            answer="Python is a popular programming language.",
+        )
+
+        assert "context_relevancy" in result
+        assert "answer_relevancy" in result
+        assert "faithfulness" in result
+
+        # Retrieval metrics should NOT be present
+        assert "mrr" not in result
+        assert "ndcg" not in result

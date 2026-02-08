@@ -1,8 +1,16 @@
-"""Retrieval Evaluation Metrics: MRR, NDCG@K, Precision@K, Recall@K, Hit Rate@K."""
+"""Retrieval Evaluation Metrics: MRR, NDCG@K, Precision@K, Recall@K, Hit Rate@K.
+
+Also includes RAGAS-style generation quality metrics: context relevancy,
+answer relevancy, and faithfulness.
+"""
 
 from __future__ import annotations
 
 import math
+import re
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 class Evaluator:
@@ -169,3 +177,83 @@ class Evaluator:
             if doc_id in relevant:
                 return 1.0
         return 0.0
+
+    # ------------------------------------------------------------------
+    # RAGAS-style generation quality metrics
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _tfidf_cosine(text_a: str, text_b: str) -> float:
+        """Compute TF-IDF cosine similarity between two texts.
+
+        Returns 0.0 for empty or non-overlapping texts.
+        """
+        if not text_a or not text_a.strip() or not text_b or not text_b.strip():
+            return 0.0
+
+        try:
+            vectorizer = TfidfVectorizer()
+            tfidf = vectorizer.fit_transform([text_a, text_b])
+            sim = cosine_similarity(tfidf[0:1], tfidf[1:2])
+            return float(sim[0][0])
+        except ValueError:
+            # Can happen if both texts have only stop words or no features
+            return 0.0
+
+    def context_relevancy(self, context: str, query: str) -> float:
+        """Score how relevant a context passage is to a query.
+
+        Uses TF-IDF cosine similarity between query and context.
+        """
+        return self._tfidf_cosine(context, query)
+
+    def answer_relevancy(self, answer: str, query: str) -> float:
+        """Score how relevant an answer is to the original query.
+
+        Uses TF-IDF cosine similarity.
+        """
+        return self._tfidf_cosine(answer, query)
+
+    def faithfulness(self, answer: str, context: str) -> float:
+        """Score how faithful an answer is to its source context.
+
+        Keyword overlap: fraction of answer keywords found in context.
+        """
+        answer_words = set(re.findall(r"[a-zA-Z]+", answer.lower()))
+        answer_words = {w for w in answer_words if len(w) > 2}
+
+        if not answer_words:
+            return 0.0
+
+        context_words = set(re.findall(r"[a-zA-Z]+", context.lower()))
+        context_words = {w for w in context_words if len(w) > 2}
+
+        overlap = answer_words & context_words
+        return len(overlap) / len(answer_words)
+
+    def evaluate_rag(
+        self,
+        query: str,
+        context: str,
+        answer: str,
+        retrieved: list[str] | None = None,
+        relevant: set[str] | None = None,
+        k: int = 5,
+    ) -> dict[str, float]:
+        """Full RAG evaluation combining retrieval and generation metrics.
+
+        Returns dict with: context_relevancy, answer_relevancy, faithfulness,
+        and optionally mrr, ndcg, precision, recall, hit_rate if
+        retrieved/relevant provided.
+        """
+        result: dict[str, float] = {
+            "context_relevancy": self.context_relevancy(context, query),
+            "answer_relevancy": self.answer_relevancy(answer, query),
+            "faithfulness": self.faithfulness(answer, context),
+        }
+
+        if retrieved is not None and relevant is not None:
+            retrieval = self.evaluate_single(retrieved, relevant, k=k)
+            result.update(retrieval)
+
+        return result

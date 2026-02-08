@@ -7,6 +7,7 @@ from pathlib import Path
 
 import streamlit as st
 
+from docqa_engine.chunking import Chunker
 from docqa_engine.pipeline import DocQAPipeline
 
 DEMO_DIR = Path(__file__).parent / "demo_docs"
@@ -187,6 +188,83 @@ def render_prompt_lab_tab(pipeline: DocQAPipeline) -> None:
             st.caption(f"Tokens: {comparison.answer_b.tokens_used}")
 
 
+CHUNKING_SAMPLE_TEXT = """\
+Machine learning is a subset of artificial intelligence that enables systems to learn \
+and improve from experience without being explicitly programmed. It focuses on the \
+development of computer programs that can access data and use it to learn for themselves.
+
+The process begins with observations or data, such as examples, direct experience, or \
+instruction. It looks for patterns in data and makes better decisions in the future \
+based on the examples that we provide. The primary aim is to allow the computers to \
+learn automatically without human intervention or assistance and adjust actions accordingly.
+
+Supervised learning is one of the most common types. In this approach, the algorithm is \
+trained on labeled data. The model learns to map inputs to known outputs, allowing it to \
+make predictions on new, unseen data. Common algorithms include linear regression, \
+decision trees, and neural networks.
+
+Unsupervised learning works with unlabeled data. The algorithm tries to find hidden \
+patterns or intrinsic structures in the input data. Clustering and dimensionality \
+reduction are typical unsupervised learning tasks. K-means clustering and principal \
+component analysis are widely used techniques.
+
+Reinforcement learning is a type of machine learning where an agent learns to make \
+decisions by performing actions in an environment to maximize cumulative reward. \
+The agent receives feedback in the form of rewards or penalties and adjusts its \
+strategy accordingly. This approach has been successfully applied to game playing, \
+robotics, and autonomous vehicles.
+"""
+
+
+def render_chunking_lab_tab() -> None:
+    """Render the Chunking Lab tab for comparing chunking strategies."""
+    st.subheader("Chunking Lab")
+    st.caption("Compare different document chunking strategies for RAG pipelines")
+
+    text = st.text_area(
+        "Paste document text to chunk:",
+        value=CHUNKING_SAMPLE_TEXT,
+        height=200,
+        key="chunking_text",
+    )
+
+    if st.button("Run All Strategies") and text.strip():
+        chunker = Chunker()
+        comparison = chunker.compare_strategies(text)
+
+        # Summary table
+        st.divider()
+        st.subheader("Strategy Comparison")
+
+        rows = []
+        for name, result in comparison.results.items():
+            rows.append(
+                {
+                    "Strategy": name,
+                    "Total Chunks": result.total_chunks,
+                    "Avg Chunk Size": f"{result.avg_chunk_size:.1f}",
+                }
+            )
+
+        st.table(rows)
+        st.success(
+            f"Best strategy: **{comparison.best_strategy}** (avg size {comparison.best_avg_size:.1f}, closest to 500)"
+        )
+
+        # Individual chunk display
+        st.divider()
+        strategy_names = list(comparison.results.keys())
+        selected = st.selectbox("View chunks for strategy:", strategy_names)
+
+        if selected:
+            result = comparison.results[selected]
+            for chunk in result.chunks:
+                with st.expander(
+                    f"Chunk {chunk.index} (chars {chunk.start_char}-{chunk.end_char}, len={len(chunk.text)})"
+                ):
+                    st.text(chunk.text)
+
+
 def render_stats_tab(pipeline: DocQAPipeline) -> None:
     """Render the Stats tab with pipeline metrics."""
     st.subheader("Pipeline Statistics")
@@ -218,7 +296,9 @@ def main() -> None:
 
     pipeline = get_pipeline()
 
-    tab_docs, tab_ask, tab_lab, tab_stats = st.tabs(["Documents", "Ask Questions", "Prompt Lab", "Stats"])
+    tab_docs, tab_ask, tab_lab, tab_chunk, tab_stats = st.tabs(
+        ["Documents", "Ask Questions", "Prompt Lab", "Chunking Lab", "Stats"]
+    )
 
     with tab_docs:
         render_documents_tab(pipeline)
@@ -228,6 +308,9 @@ def main() -> None:
 
     with tab_lab:
         render_prompt_lab_tab(pipeline)
+
+    with tab_chunk:
+        render_chunking_lab_tab()
 
     with tab_stats:
         render_stats_tab(pipeline)
