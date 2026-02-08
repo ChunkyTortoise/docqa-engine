@@ -4,6 +4,7 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/ChunkyTortoise/docqa-engine/ci.yml?label=CI)](https://github.com/ChunkyTortoise/docqa-engine/actions)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
+[![Tests](https://img.shields.io/badge/tests-94_passing-brightgreen)](tests/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F1C40F.svg)](LICENSE)
 
 ## Problem Statement
@@ -134,6 +135,8 @@ python -m pytest tests/test_ingest.py       # Single module
 - [ai-orchestrator](https://github.com/ChunkyTortoise/ai-orchestrator) -- AgentForge: unified async LLM interface (Claude, Gemini, OpenAI, Perplexity)
 - [Revenue-Sprint](https://github.com/ChunkyTortoise/Revenue-Sprint) -- AI-powered freelance pipeline: job scanning, proposal generation, prompt injection testing
 - [jorge_real_estate_bots](https://github.com/ChunkyTortoise/jorge_real_estate_bots) -- Three-bot lead qualification system (Lead, Buyer, Seller)
+- [scrape-and-serve](https://github.com/ChunkyTortoise/scrape-and-serve) -- Web scraping, price monitoring, Excel-to-web apps, and SEO tools
+- [Portfolio](https://chunkytortoise.github.io)
 
 ## License
 
