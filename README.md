@@ -4,7 +4,7 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/ChunkyTortoise/docqa-engine/ci.yml?label=CI)](https://github.com/ChunkyTortoise/docqa-engine/actions)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-94_passing-brightgreen)](tests/)
+[![Tests](https://img.shields.io/badge/tests-120+_passing-brightgreen)](tests/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-F1C40F.svg)](LICENSE)
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Streamlit_Cloud-FF4B4B.svg?logo=streamlit&logoColor=white)](https://ct-document-engine.streamlit.app)
 
@@ -78,6 +78,75 @@ Lightweight embedding using scikit-learn's TfidfVectorizer with unigram + bigram
 ### 6. Streamlit UI
 Four-tab interface: Documents (ingest and overview), Ask Questions (search and answer), Prompt Lab (A/B comparison), and Stats (pipeline metrics and cost tracking). Session state persists the pipeline across Streamlit rerenders.
 
+### 7. Retrieval Evaluation
+Measure retrieval quality with standard IR metrics: MRR, NDCG@K, Precision@K, Recall@K, and Hit Rate@K. Compare search configurations, embedders, or chunk sizes to find the best setup for your documents.
+
+```python
+from docqa_engine.evaluator import Evaluator
+
+evaluator = Evaluator()
+
+# Evaluate a single query
+result = evaluator.evaluate_single(
+    retrieved=["doc1", "doc3", "doc5"],
+    relevant={"doc1", "doc2", "doc5"},
+    k=5,
+)
+print(result)  # {'mrr': 1.0, 'ndcg': 0.86, 'precision': 0.67, ...}
+
+# Batch evaluation across multiple queries
+metrics = evaluator.evaluate(
+    queries=["query1", "query2"],
+    retrieved_docs=[["d1", "d2"], ["d3", "d4"]],
+    relevant_docs=[{"d1"}, {"d3", "d5"}],
+    k=5,
+)
+```
+
+### 8. Batch Processing
+Ingest multiple documents in parallel and run batches of queries with progress tracking. Partial failures are handled gracefully -- one bad file does not block the rest.
+
+```python
+from docqa_engine.batch import BatchProcessor
+from docqa_engine.pipeline import DocQAPipeline
+
+pipeline = DocQAPipeline()
+batch = BatchProcessor(pipeline, max_workers=4)
+
+# Batch ingest with progress
+result = batch.process_documents(
+    ["report.pdf", "notes.txt", "data.csv"],
+    on_progress=lambda done, total: print(f"{done}/{total}"),
+)
+print(f"Ingested {result.succeeded}/{result.total}, {result.failed} failed")
+
+# Batch queries (async)
+import asyncio
+results = asyncio.run(batch.process_queries(
+    ["What is the revenue trend?", "Who are the top customers?"],
+))
+for r in results:
+    print(f"Q: {r.query}\nA: {r.answer}\n")
+```
+
+### 9. Export
+Export Q&A results and evaluation metrics to JSON or CSV for reporting, dashboards, or downstream analysis.
+
+```python
+from docqa_engine.exporter import Exporter
+
+exporter = Exporter()
+
+# Export query results to JSON (includes metadata: timestamp, version)
+exporter.to_json(results, "output/qa_results.json")
+
+# Export to CSV (columns: query, answer, sources, confidence, elapsed_ms)
+exporter.to_csv(results, "output/qa_results.csv")
+
+# Export evaluation metrics
+exporter.export_evaluation(metrics, "output/eval_metrics.json")
+```
+
 ## Demo Documents
 
 | Document | Topic | Content |
@@ -99,7 +168,10 @@ docqa-engine/
 │   ├── answer.py                   # LLM answer generation + citations
 │   ├── prompt_lab.py               # Prompt versioning + A/B testing
 │   ├── cost_tracker.py             # Per-query token + cost tracking
-│   └── pipeline.py                 # End-to-end DocQAPipeline class
+│   ├── pipeline.py                 # End-to-end DocQAPipeline class
+│   ├── evaluator.py                # Retrieval metrics (MRR, NDCG, P@K, R@K)
+│   ├── batch.py                    # Parallel batch ingestion + query processing
+│   └── exporter.py                 # JSON/CSV export for results + metrics
 ├── demo_docs/
 │   ├── python_guide.md             # Python programming guide
 │   ├── machine_learning.md         # ML concepts overview
