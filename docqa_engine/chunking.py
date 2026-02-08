@@ -293,3 +293,203 @@ class Chunker:
             best_strategy=best_strategy,
             best_avg_size=best_avg,
         )
+
+    def semantic_tfidf(self, text: str, similarity_threshold: float = 0.3) -> ChunkingResult:
+        """TF-IDF-based semantic chunking that detects topic boundaries.
+
+        Splits text into paragraphs, computes TF-IDF vectors for adjacent paragraphs,
+        and creates chunk boundaries where cosine similarity drops below threshold.
+        """
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.metrics.pairwise import cosine_similarity
+
+        if not text:
+            return ChunkingResult(chunks=[], strategy="semantic_tfidf", avg_chunk_size=0.0, total_chunks=0)
+
+        # Split into paragraphs
+        paragraphs = re.split(r"\n\n+", text)
+        paragraphs = [p.strip() for p in paragraphs if p.strip()]
+
+        if not paragraphs:
+            return ChunkingResult(chunks=[], strategy="semantic_tfidf", avg_chunk_size=0.0, total_chunks=0)
+
+        if len(paragraphs) == 1:
+            # Single paragraph -> single chunk
+            chunks = [
+                Chunk(
+                    text=paragraphs[0],
+                    index=0,
+                    start_char=0,
+                    end_char=len(paragraphs[0]),
+                    metadata={"strategy": "semantic_tfidf"},
+                )
+            ]
+            return ChunkingResult(
+                chunks=chunks,
+                strategy="semantic_tfidf",
+                avg_chunk_size=len(paragraphs[0]),
+                total_chunks=1,
+            )
+
+        # Compute TF-IDF vectors
+        try:
+            vectorizer = TfidfVectorizer()
+            tfidf_matrix = vectorizer.fit_transform(paragraphs)
+        except ValueError:
+            # No features (all stop words) -> treat as single chunk
+            all_text = "\n\n".join(paragraphs)
+            chunks = [
+                Chunk(
+                    text=all_text,
+                    index=0,
+                    start_char=0,
+                    end_char=len(all_text),
+                    metadata={"strategy": "semantic_tfidf"},
+                )
+            ]
+            return ChunkingResult(
+                chunks=chunks,
+                strategy="semantic_tfidf",
+                avg_chunk_size=len(all_text),
+                total_chunks=1,
+            )
+
+        # Find topic boundaries: where similarity drops below threshold
+        boundaries = [0]  # Start of first chunk
+        for i in range(len(paragraphs) - 1):
+            sim = cosine_similarity(tfidf_matrix[i : i + 1], tfidf_matrix[i + 1 : i + 2])[0][0]
+            if sim < similarity_threshold:
+                boundaries.append(i + 1)
+        boundaries.append(len(paragraphs))  # End boundary
+
+        # Build chunks from boundaries
+        chunks: list[Chunk] = []
+        pos = 0
+        for idx, (start_idx, end_idx) in enumerate(zip(boundaries[:-1], boundaries[1:])):
+            chunk_paragraphs = paragraphs[start_idx:end_idx]
+            chunk_text = "\n\n".join(chunk_paragraphs)
+
+            # Find position in original text
+            start_char = text.find(chunk_paragraphs[0], pos)
+            if start_char == -1:
+                start_char = pos
+
+            end_char = start_char + len(chunk_text)
+            pos = end_char
+
+            chunks.append(
+                Chunk(
+                    text=chunk_text,
+                    index=idx,
+                    start_char=start_char,
+                    end_char=end_char,
+                    metadata={"strategy": "semantic_tfidf"},
+                )
+            )
+
+        avg_size = sum(len(c.text) for c in chunks) / len(chunks) if chunks else 0.0
+        return ChunkingResult(
+            chunks=chunks,
+            strategy="semantic_tfidf",
+            avg_chunk_size=avg_size,
+            total_chunks=len(chunks),
+        )
+
+    def sliding_window_ratio(self, text: str, chunk_size: int = 500, overlap_ratio: float = 0.5) -> ChunkingResult:
+        """Sliding window chunking with overlap specified as a ratio.
+
+        Args:
+            text: Text to chunk.
+            chunk_size: Size of each chunk in characters.
+            overlap_ratio: Fraction of chunk_size to overlap (0.0-1.0).
+
+        Returns:
+            ChunkingResult with overlapping chunks.
+        """
+        if not text:
+            return ChunkingResult(
+                chunks=[],
+                strategy="sliding_window_ratio",
+                avg_chunk_size=0.0,
+                total_chunks=0,
+            )
+
+        overlap = int(chunk_size * overlap_ratio)
+        step = chunk_size - overlap
+
+        # Delegate to existing sliding_window method
+        result = self.sliding_window(text, window_size=chunk_size, step=step)
+
+        # Update strategy name and metadata
+        result.strategy = "sliding_window_ratio"
+        for chunk in result.chunks:
+            chunk.metadata["strategy"] = "sliding_window_ratio"
+
+        return result
+
+    def recursive(self, text: str, max_chunk_size: int = 1000, separators: list[str] | None = None) -> ChunkingResult:
+        """Recursive chunking with hierarchical separators.
+
+        Tries splitting on "\n\n" first, then "\n", then ". ", then " ".
+        If a chunk exceeds max_chunk_size, recursively splits with next separator.
+        """
+        if separators is None:
+            separators = ["\n\n", "\n", ". ", " "]
+
+        if not text:
+            return ChunkingResult(chunks=[], strategy="recursive", avg_chunk_size=0.0, total_chunks=0)
+
+        def _recursive_split(text_segment: str, sep_idx: int) -> list[str]:
+            """Recursively split text using hierarchical separators."""
+            if sep_idx >= len(separators):
+                # No more separators, must use this chunk even if too large
+                return [text_segment] if text_segment else []
+
+            separator = separators[sep_idx]
+            parts = text_segment.split(separator)
+
+            result: list[str] = []
+            for part in parts:
+                if len(part) <= max_chunk_size:
+                    if part.strip():
+                        result.append(part)
+                else:
+                    # Part too large, recurse with next separator
+                    sub_parts = _recursive_split(part, sep_idx + 1)
+                    result.extend(sub_parts)
+
+            return result
+
+        # Perform recursive splitting
+        chunk_texts = _recursive_split(text, 0)
+
+        # Build Chunk objects with positions
+        chunks: list[Chunk] = []
+        pos = 0
+        for idx, chunk_text in enumerate(chunk_texts):
+            # Find position in original text
+            start_char = text.find(chunk_text, pos)
+            if start_char == -1:
+                # Fallback if exact match not found (shouldn't happen)
+                start_char = pos
+
+            end_char = start_char + len(chunk_text)
+            pos = end_char
+
+            chunks.append(
+                Chunk(
+                    text=chunk_text,
+                    index=idx,
+                    start_char=start_char,
+                    end_char=end_char,
+                    metadata={"strategy": "recursive"},
+                )
+            )
+
+        avg_size = sum(len(c.text) for c in chunks) / len(chunks) if chunks else 0.0
+        return ChunkingResult(
+            chunks=chunks,
+            strategy="recursive",
+            avg_chunk_size=avg_size,
+            total_chunks=len(chunks),
+        )

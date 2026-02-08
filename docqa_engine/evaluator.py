@@ -257,3 +257,217 @@ class Evaluator:
             result.update(retrieval)
 
         return result
+
+    # ------------------------------------------------------------------
+    # Enhanced generation quality metrics
+    # ------------------------------------------------------------------
+
+    def check_faithfulness(self, answer: str, context: str) -> dict[str, any]:
+        """Check what fraction of answer sentences are supported by context.
+
+        A sentence is "supported" if >50% of its keywords appear in context.
+
+        Returns:
+            dict with 'score', 'supported_sentences', 'unsupported_sentences'.
+        """
+        if not answer or not answer.strip():
+            return {
+                "score": 0.0,
+                "supported_sentences": [],
+                "unsupported_sentences": [],
+            }
+
+        # Split answer into sentences
+        sentences = re.split(r"[.!?]+", answer)
+        sentences = [s.strip() for s in sentences if s.strip()]
+
+        if not sentences:
+            return {
+                "score": 0.0,
+                "supported_sentences": [],
+                "unsupported_sentences": [],
+            }
+
+        # Extract context keywords
+        context_words = set(re.findall(r"[a-zA-Z]+", context.lower()))
+        context_words = {w for w in context_words if len(w) > 2}
+
+        supported = []
+        unsupported = []
+
+        for sentence in sentences:
+            sentence_words = set(re.findall(r"[a-zA-Z]+", sentence.lower()))
+            sentence_words = {w for w in sentence_words if len(w) > 2}
+
+            if not sentence_words:
+                # Empty sentence -> consider unsupported
+                unsupported.append(sentence)
+                continue
+
+            # Check keyword overlap
+            overlap = sentence_words & context_words
+            overlap_ratio = len(overlap) / len(sentence_words)
+
+            if overlap_ratio > 0.5:
+                supported.append(sentence)
+            else:
+                unsupported.append(sentence)
+
+        score = len(supported) / len(sentences) if sentences else 0.0
+
+        return {
+            "score": score,
+            "supported_sentences": supported,
+            "unsupported_sentences": unsupported,
+        }
+
+    def check_completeness(self, answer: str, question: str, context: str) -> dict[str, any]:
+        """Check if answer addresses key terms from the question.
+
+        Extracts key terms (>2 chars) from question and checks if answer contains them.
+
+        Returns:
+            dict with 'score', 'addressed_terms', 'missing_terms'.
+        """
+        if not question or not question.strip():
+            return {
+                "score": 0.0,
+                "addressed_terms": [],
+                "missing_terms": [],
+            }
+
+        # Extract question keywords
+        question_words = set(re.findall(r"[a-zA-Z]+", question.lower()))
+        question_words = {w for w in question_words if len(w) > 2}
+
+        # Filter out common question words
+        stop_words = {"what", "when", "where", "which", "who", "how", "why", "does", "did", "can", "will", "would"}
+        question_words = question_words - stop_words
+
+        if not question_words:
+            return {
+                "score": 0.0,
+                "addressed_terms": [],
+                "missing_terms": [],
+            }
+
+        # Extract answer keywords
+        answer_words = set(re.findall(r"[a-zA-Z]+", answer.lower()))
+        answer_words = {w for w in answer_words if len(w) > 2}
+
+        # Check which question terms are in the answer
+        addressed = sorted(list(question_words & answer_words))
+        missing = sorted(list(question_words - answer_words))
+
+        score = len(addressed) / len(question_words) if question_words else 0.0
+
+        return {
+            "score": score,
+            "addressed_terms": addressed,
+            "missing_terms": missing,
+        }
+
+    def detect_hallucinations(self, answer: str, context: str) -> dict[str, any]:
+        """Detect claims in answer NOT supported by context.
+
+        A sentence is a "hallucination" if <30% of its keywords appear in context.
+
+        Returns:
+            dict with 'hallucination_count', 'hallucinated_sentences',
+            'total_sentences', 'hallucination_rate'.
+        """
+        if not answer or not answer.strip():
+            return {
+                "hallucination_count": 0,
+                "hallucinated_sentences": [],
+                "total_sentences": 0,
+                "hallucination_rate": 0.0,
+            }
+
+        # Split answer into sentences
+        sentences = re.split(r"[.!?]+", answer)
+        sentences = [s.strip() for s in sentences if s.strip()]
+
+        if not sentences:
+            return {
+                "hallucination_count": 0,
+                "hallucinated_sentences": [],
+                "total_sentences": 0,
+                "hallucination_rate": 0.0,
+            }
+
+        # Extract context keywords
+        context_words = set(re.findall(r"[a-zA-Z]+", context.lower()))
+        context_words = {w for w in context_words if len(w) > 2}
+
+        hallucinated = []
+
+        for sentence in sentences:
+            sentence_words = set(re.findall(r"[a-zA-Z]+", sentence.lower()))
+            sentence_words = {w for w in sentence_words if len(w) > 2}
+
+            if not sentence_words:
+                # Empty sentence -> not a hallucination
+                continue
+
+            # Check keyword overlap
+            overlap = sentence_words & context_words
+            overlap_ratio = len(overlap) / len(sentence_words)
+
+            if overlap_ratio < 0.3:
+                # Low overlap -> likely hallucination
+                hallucinated.append(sentence)
+
+        hallucination_count = len(hallucinated)
+        total_sentences = len(sentences)
+        hallucination_rate = hallucination_count / total_sentences if total_sentences > 0 else 0.0
+
+        return {
+            "hallucination_count": hallucination_count,
+            "hallucinated_sentences": hallucinated,
+            "total_sentences": total_sentences,
+            "hallucination_rate": hallucination_rate,
+        }
+
+    def context_quality(self, retrieved_chunks: list[str], relevant_chunks: list[str]) -> dict[str, float]:
+        """Compute precision, recall, and F1 for retrieved vs relevant chunks.
+
+        Args:
+            retrieved_chunks: List of retrieved chunk identifiers.
+            relevant_chunks: List of ground-truth relevant chunk identifiers.
+
+        Returns:
+            dict with 'precision', 'recall', 'f1'.
+        """
+        if not retrieved_chunks and not relevant_chunks:
+            return {"precision": 0.0, "recall": 0.0, "f1": 0.0}
+
+        retrieved_set = set(retrieved_chunks)
+        relevant_set = set(relevant_chunks)
+
+        if not retrieved_set:
+            return {"precision": 0.0, "recall": 0.0, "f1": 0.0}
+
+        if not relevant_set:
+            return {"precision": 0.0, "recall": 0.0, "f1": 0.0}
+
+        # Calculate intersection
+        intersection = retrieved_set & relevant_set
+
+        # Precision: fraction of retrieved that are relevant
+        precision = len(intersection) / len(retrieved_set) if retrieved_set else 0.0
+
+        # Recall: fraction of relevant that were retrieved
+        recall = len(intersection) / len(relevant_set) if relevant_set else 0.0
+
+        # F1: harmonic mean
+        if precision + recall > 0:
+            f1 = 2 * (precision * recall) / (precision + recall)
+        else:
+            f1 = 0.0
+
+        return {
+            "precision": precision,
+            "recall": recall,
+            "f1": f1,
+        }

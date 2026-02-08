@@ -147,3 +147,141 @@ class CitationScorer:
             redundancy=redundancy,
             overall_score=overall_score,
         )
+
+    def relevance_score_tfidf(self, query: str, citation_text: str) -> float:
+        """Compute TF-IDF cosine similarity between query and citation.
+
+        Args:
+            query: The search query.
+            citation_text: The citation text to score.
+
+        Returns:
+            Float 0-1 representing relevance score.
+        """
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.metrics.pairwise import cosine_similarity
+
+        if not query or not query.strip() or not citation_text or not citation_text.strip():
+            return 0.0
+
+        try:
+            vectorizer = TfidfVectorizer()
+            tfidf_matrix = vectorizer.fit_transform([query, citation_text])
+            similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
+            return float(similarity)
+        except ValueError:
+            # No features (all stop words or empty)
+            return 0.0
+
+    def deduplicate_citations(self, citations: list[str], similarity_threshold: float = 0.8):
+        """Merge citations with high overlap.
+
+        Args:
+            citations: List of citation texts.
+            similarity_threshold: Threshold for considering citations duplicates (0-1).
+
+        Returns:
+            dict with 'citations', 'removed_count', 'original_count'.
+        """
+        if not citations:
+            return {"citations": [], "removed_count": 0, "original_count": 0}
+
+        original_count = len(citations)
+        keyword_sets = [_extract_keywords(c) for c in citations]
+
+        # Track which citations to keep
+        keep = [True] * len(citations)
+
+        for i in range(len(citations)):
+            if not keep[i]:
+                continue
+
+            for j in range(i + 1, len(citations)):
+                if not keep[j]:
+                    continue
+
+                set_a = keyword_sets[i]
+                set_b = keyword_sets[j]
+
+                # Calculate Jaccard similarity
+                if not set_a and not set_b:
+                    # Both empty = identical
+                    keep[j] = False
+                    continue
+
+                if not set_a or not set_b:
+                    continue
+
+                union = set_a | set_b
+                intersection = set_a & set_b
+                jaccard = len(intersection) / len(union) if union else 0.0
+
+                if jaccard > similarity_threshold:
+                    # Mark duplicate for removal (keep the first one)
+                    keep[j] = False
+
+        deduplicated = [citations[i] for i in range(len(citations)) if keep[i]]
+        removed_count = original_count - len(deduplicated)
+
+        return {
+            "citations": deduplicated,
+            "removed_count": removed_count,
+            "original_count": original_count,
+        }
+
+    def rank_citations(self, citations: list[str], query: str) -> list[str]:
+        """Rank citations by relevance to query using TF-IDF.
+
+        Args:
+            citations: List of citation texts.
+            query: The search query.
+
+        Returns:
+            Citations sorted by relevance (most relevant first).
+        """
+        if not citations:
+            return []
+
+        # Score each citation
+        scores = [(citation, self.relevance_score_tfidf(query, citation)) for citation in citations]
+
+        # Sort by score descending
+        scores.sort(key=lambda x: x[1], reverse=True)
+
+        return [citation for citation, _ in scores]
+
+    def source_coverage(self, citations: list[str], source_texts: list[str]):
+        """Check which sources are covered by at least one citation.
+
+        Args:
+            citations: List of citation texts.
+            source_texts: List of source document texts.
+
+        Returns:
+            dict with 'coverage_ratio', 'covered_sources', 'uncovered_sources'.
+        """
+        if not source_texts:
+            return {"coverage_ratio": 0.0, "covered_sources": [], "uncovered_sources": []}
+
+        citation_keywords = set()
+        for citation in citations:
+            citation_keywords.update(_extract_keywords(citation))
+
+        covered = []
+        uncovered = []
+
+        for source in source_texts:
+            source_keywords = _extract_keywords(source)
+            # Check if there's any overlap
+            if citation_keywords & source_keywords:
+                covered.append(source)
+            else:
+                uncovered.append(source)
+
+        coverage_ratio = len(covered) / len(source_texts) if source_texts else 0.0
+
+        return {
+            "coverage_ratio": coverage_ratio,
+            "covered_sources": covered,
+            "uncovered_sources": uncovered,
+        }

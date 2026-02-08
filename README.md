@@ -2,23 +2,19 @@
 
 **Upload documents, ask questions -- get cited answers with a prompt engineering lab.**
 
-[![CI](https://img.shields.io/github/actions/workflow/status/ChunkyTortoise/docqa-engine/ci.yml?label=CI)](https://github.com/ChunkyTortoise/docqa-engine/actions)
-[![Python 3.11+](https://img.shields.io/badge/python-3.11+-3776AB.svg?logo=python&logoColor=white)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-120+_passing-brightgreen)](tests/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-F1C40F.svg)](LICENSE)
+![CI](https://github.com/ChunkyTortoise/docqa-engine/actions/workflows/ci.yml/badge.svg)
+![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)
+![Tests](https://img.shields.io/badge/tests-157%20passing-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-green)
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Streamlit_Cloud-FF4B4B.svg?logo=streamlit&logoColor=white)](https://ct-document-engine.streamlit.app)
 
 **[Live Demo](https://ct-document-engine.streamlit.app)** -- try it without installing anything.
 
-## Problem Statement
-
-Teams waste hours searching through documents for answers. Knowledge is scattered across PDFs, Word docs, text files, and CSVs. When someone asks a question, the answer requires reading multiple sources, cross-referencing sections, and summarizing findings manually. There is no single tool that ingests documents, retrieves the most relevant passages, generates cited answers, and lets you experiment with different prompt strategies to improve quality.
-
 ## What This Solves
 
-- **RAG pipeline from upload to answer** -- Ingest documents (PDF, DOCX, TXT, MD, CSV), chunk them intelligently with sentence-boundary detection, embed with TF-IDF, and retrieve using BM25 + dense hybrid search with Reciprocal Rank Fusion.
-- **Prompt engineering lab for A/B testing** -- Create multiple prompt templates, run the same question through different strategies side-by-side, and compare outputs to find the most effective prompts for your use case.
-- **BM25 + dense hybrid retrieval** -- Keyword search (BM25/Okapi) catches exact term matches while dense vector search (TF-IDF cosine similarity) captures semantic relationships. RRF fusion combines both ranked lists for better recall than either alone.
+- **RAG pipeline from upload to answer** -- Ingest documents (PDF, DOCX, TXT, MD, CSV), chunk them with pluggable strategies, embed with TF-IDF, and retrieve using BM25 + dense hybrid search with Reciprocal Rank Fusion
+- **Prompt engineering lab for A/B testing** -- Create prompt templates, run the same question through different strategies side-by-side, compare outputs
+- **Citation accuracy matters** -- Faithfulness, coverage, and redundancy scoring for every generated citation
 
 ## Architecture
 
@@ -26,24 +22,43 @@ Teams waste hours searching through documents for answers. Knowledge is scattere
 Documents (PDF, DOCX, TXT, MD, CSV)
          |
          v
-┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│   Ingest     │───>│   Chunk      │───>│   Embed      │
-│  (file I/O,  │    │  (sentence   │    │  (TF-IDF     │
-│   parsing)   │    │   boundary)  │    │   vectors)   │
-└──────────────┘    └──────────────┘    └──────┬───────┘
-                                               │
-                    ┌──────────────┐    ┌───────▼──────┐
-                    │   Answer     │<───│   Retrieve   │
-                    │  (LLM gen,   │    │  (BM25 +     │
-                    │   citations) │    │   Dense RRF) │
-                    └──────┬───────┘    └──────────────┘
-                           │
-                    ┌──────▼───────┐
-                    │  Prompt Lab  │
-                    │  (A/B test,  │
-                    │   versions)  │
-                    └──────────────┘
++--------------+    +--------------+    +--------------+
+|   Ingest     |--->|   Chunk      |--->|   Embed      |
+|  (file I/O,  |    |  (fixed,     |    |  (TF-IDF     |
+|   parsing)   |    |   sentence,  |    |   vectors)   |
++--------------+    |   semantic)  |    +------+-------+
+                    +--------------+           |
+                    +--------------+    +------v-------+
+                    |   Answer     |<---|   Retrieve   |
+                    |  (LLM gen,   |    |  (BM25 +     |
+                    |   citations) |    |   Dense RRF) |
+                    +------+-------+    +--------------+
+                           |
+                +----------+----------+
+                |                     |
+         +------v-------+    +-------v--------+
+         |  Prompt Lab  |    | Citation Scorer |
+         |  (A/B test,  |    | (faithfulness,  |
+         |   versions)  |    |  coverage)      |
+         +--------------+    +----------------+
 ```
+
+## Modules
+
+| Module | File | Description |
+|--------|------|-------------|
+| **Ingest** | `ingest.py` | Multi-format document loading (PDF, DOCX, TXT, MD, CSV) |
+| **Chunking** | `chunking.py` | Pluggable chunking strategies: fixed-size, sentence-boundary, semantic |
+| **Embedder** | `embedder.py` | TF-IDF embedding (5,000 features, no external API calls) |
+| **Retriever** | `retriever.py` | BM25 + dense cosine + hybrid RRF fusion |
+| **Answer** | `answer.py` | Context-aware answer generation with source citations |
+| **Prompt Lab** | `prompt_lab.py` | Prompt versioning and A/B comparison framework |
+| **Citation Scorer** | `citation_scorer.py` | Citation faithfulness, coverage, and redundancy scoring |
+| **Evaluator** | `evaluator.py` | Retrieval metrics: MRR, NDCG@K, Precision@K, Recall@K, Hit Rate |
+| **Batch** | `batch.py` | Parallel batch ingestion and query processing |
+| **Exporter** | `exporter.py` | JSON/CSV export for results and metrics |
+| **Cost Tracker** | `cost_tracker.py` | Per-query token and cost tracking |
+| **Pipeline** | `pipeline.py` | End-to-end DocQAPipeline class |
 
 ## Quick Start
 
@@ -51,109 +66,29 @@ Documents (PDF, DOCX, TXT, MD, CSV)
 git clone https://github.com/ChunkyTortoise/docqa-engine.git
 cd docqa-engine
 pip install -r requirements.txt
-
-# Demo mode -- 3 sample documents, no config needed
+make test
 make demo
-```
-
-Or try the **[live demo on Streamlit Cloud](https://ct-document-engine.streamlit.app)** -- no installation required.
-
-## Core Features
-
-### 1. Document Ingestion
-Multi-format document loading with configurable chunking. Supports PDF (via PyPDF2), DOCX (via python-docx), plain text, Markdown, and CSV. Chunks use sentence-boundary detection with configurable size and overlap to preserve context across splits.
-
-### 2. Hybrid Retrieval
-Dual-index search combining BM25 (Okapi) keyword matching with dense vector cosine similarity. Results are fused using Reciprocal Rank Fusion (RRF) to produce a single ranked list that captures both exact term matches and semantic relationships.
-
-### 3. Answer Generation
-Context-aware answer generation with automatic source citations. Builds a context window from top-k retrieved chunks, annotates each with source references, and generates answers via LLM or mock mode. Every answer includes chunk-level citations with relevance scores.
-
-### 4. Prompt Lab
-Prompt versioning and A/B comparison framework. Create named prompt templates with configurable temperature and max tokens. Run the same question through two templates side-by-side to evaluate which strategy produces better answers. Tracks experiment history with evaluation scores.
-
-### 5. TF-IDF Embedder
-Lightweight embedding using scikit-learn's TfidfVectorizer with unigram + bigram features, English stop word removal, and sublinear TF scaling. No external API calls required -- embeddings are generated locally and support up to 5,000 features.
-
-### 6. Streamlit UI
-Four-tab interface: Documents (ingest and overview), Ask Questions (search and answer), Prompt Lab (A/B comparison), and Stats (pipeline metrics and cost tracking). Session state persists the pipeline across Streamlit rerenders.
-
-### 7. Retrieval Evaluation
-Measure retrieval quality with standard IR metrics: MRR, NDCG@K, Precision@K, Recall@K, and Hit Rate@K. Compare search configurations, embedders, or chunk sizes to find the best setup for your documents.
-
-```python
-from docqa_engine.evaluator import Evaluator
-
-evaluator = Evaluator()
-
-# Evaluate a single query
-result = evaluator.evaluate_single(
-    retrieved=["doc1", "doc3", "doc5"],
-    relevant={"doc1", "doc2", "doc5"},
-    k=5,
-)
-print(result)  # {'mrr': 1.0, 'ndcg': 0.86, 'precision': 0.67, ...}
-
-# Batch evaluation across multiple queries
-metrics = evaluator.evaluate(
-    queries=["query1", "query2"],
-    retrieved_docs=[["d1", "d2"], ["d3", "d4"]],
-    relevant_docs=[{"d1"}, {"d3", "d5"}],
-    k=5,
-)
-```
-
-### 8. Batch Processing
-Ingest multiple documents in parallel and run batches of queries with progress tracking. Partial failures are handled gracefully -- one bad file does not block the rest.
-
-```python
-from docqa_engine.batch import BatchProcessor
-from docqa_engine.pipeline import DocQAPipeline
-
-pipeline = DocQAPipeline()
-batch = BatchProcessor(pipeline, max_workers=4)
-
-# Batch ingest with progress
-result = batch.process_documents(
-    ["report.pdf", "notes.txt", "data.csv"],
-    on_progress=lambda done, total: print(f"{done}/{total}"),
-)
-print(f"Ingested {result.succeeded}/{result.total}, {result.failed} failed")
-
-# Batch queries (async)
-import asyncio
-results = asyncio.run(batch.process_queries(
-    ["What is the revenue trend?", "Who are the top customers?"],
-))
-for r in results:
-    print(f"Q: {r.query}\nA: {r.answer}\n")
-```
-
-### 9. Export
-Export Q&A results and evaluation metrics to JSON or CSV for reporting, dashboards, or downstream analysis.
-
-```python
-from docqa_engine.exporter import Exporter
-
-exporter = Exporter()
-
-# Export query results to JSON (includes metadata: timestamp, version)
-exporter.to_json(results, "output/qa_results.json")
-
-# Export to CSV (columns: query, answer, sources, confidence, elapsed_ms)
-exporter.to_csv(results, "output/qa_results.csv")
-
-# Export evaluation metrics
-exporter.export_evaluation(metrics, "output/eval_metrics.json")
 ```
 
 ## Demo Documents
 
 | Document | Topic | Content |
 |----------|-------|---------|
-| `python_guide.md` | Python Basics | Variables, control flow, functions, classes, comprehensions, error handling |
-| `machine_learning.md` | ML Concepts | Supervised/unsupervised, regression, classification, neural networks, overfitting |
-| `startup_playbook.md` | Startup Advice | Product-market fit, MVP, fundraising, team building, metrics, pivoting |
+| `python_guide.md` | Python Basics | Variables, control flow, functions, classes, error handling |
+| `machine_learning.md` | ML Concepts | Supervised/unsupervised, regression, classification, neural networks |
+| `startup_playbook.md` | Startup Advice | Product-market fit, MVP, fundraising, team building, metrics |
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| UI | Streamlit (4 tabs) |
+| Embeddings | scikit-learn (TF-IDF) |
+| Retrieval | BM25 (Okapi) + Dense (cosine) + RRF |
+| Document Parsing | PyPDF2, python-docx |
+| Testing | pytest, pytest-asyncio (157 tests) |
+| CI | GitHub Actions (Python 3.11, 3.12) |
+| Linting | Ruff |
 
 ## Project Structure
 
@@ -161,48 +96,31 @@ exporter.export_evaluation(metrics, "output/eval_metrics.json")
 docqa-engine/
 ├── app.py                          # Streamlit application (4 tabs)
 ├── docqa_engine/
-│   ├── __init__.py
-│   ├── ingest.py                   # Document loading + chunking
+│   ├── ingest.py                   # Document loading + parsing
+│   ├── chunking.py                 # Pluggable chunking strategies
 │   ├── embedder.py                 # TF-IDF embedding
 │   ├── retriever.py                # BM25 + Dense + Hybrid (RRF)
 │   ├── answer.py                   # LLM answer generation + citations
 │   ├── prompt_lab.py               # Prompt versioning + A/B testing
-│   ├── cost_tracker.py             # Per-query token + cost tracking
-│   ├── pipeline.py                 # End-to-end DocQAPipeline class
-│   ├── evaluator.py                # Retrieval metrics (MRR, NDCG, P@K, R@K)
-│   ├── batch.py                    # Parallel batch ingestion + query processing
-│   └── exporter.py                 # JSON/CSV export for results + metrics
-├── demo_docs/
-│   ├── python_guide.md             # Python programming guide
-│   ├── machine_learning.md         # ML concepts overview
-│   └── startup_playbook.md         # Startup strategy playbook
-├── tests/                          # One test file per module
-├── .github/workflows/ci.yml        # CI pipeline (Python 3.11, 3.12)
-├── Makefile                        # demo, test, lint, clean, setup
-├── pyproject.toml                  # Project config + ruff + pytest
-├── requirements.txt                # Runtime dependencies
-└── requirements-dev.txt            # Dev dependencies (pytest, ruff)
+│   ├── citation_scorer.py          # Citation accuracy scoring
+│   ├── evaluator.py                # Retrieval metrics (MRR, NDCG, P@K)
+│   ├── batch.py                    # Parallel batch processing
+│   ├── exporter.py                 # JSON/CSV export
+│   ├── cost_tracker.py             # Token + cost tracking
+│   └── pipeline.py                 # End-to-end pipeline
+├── demo_docs/                      # 3 sample documents
+├── tests/                          # 12 test files, one per module
+├── .github/workflows/ci.yml        # CI pipeline
+├── Makefile                        # demo, test, lint, setup
+└── requirements.txt
 ```
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| UI | Streamlit |
-| Embeddings | scikit-learn (TF-IDF) |
-| Retrieval | BM25 (Okapi) + Dense (cosine) + RRF |
-| Numerical | NumPy |
-| Document Parsing | PyPDF2, python-docx |
-| Testing | pytest, pytest-asyncio |
-| CI | GitHub Actions (Python 3.11, 3.12) |
-| Linting | Ruff |
 
 ## Testing
 
 ```bash
-make test                                   # Full suite
-python -m pytest tests/ -v                  # Verbose output
-python -m pytest tests/test_ingest.py       # Single module
+make test                           # Full suite (157 tests)
+python -m pytest tests/ -v          # Verbose output
+python -m pytest tests/test_ingest.py  # Single module
 ```
 
 ## Related Projects
@@ -210,9 +128,9 @@ python -m pytest tests/test_ingest.py       # Single module
 - [EnterpriseHub](https://github.com/ChunkyTortoise/EnterpriseHub) -- Real estate AI platform with BI dashboards and CRM integration
 - [insight-engine](https://github.com/ChunkyTortoise/insight-engine) -- Upload CSV/Excel, get instant dashboards, predictive models, and reports
 - [ai-orchestrator](https://github.com/ChunkyTortoise/ai-orchestrator) -- AgentForge: unified async LLM interface (Claude, Gemini, OpenAI, Perplexity)
-- [Revenue-Sprint](https://github.com/ChunkyTortoise/Revenue-Sprint) -- AI-powered freelance pipeline: job scanning, proposal generation, prompt injection testing
-- [jorge_real_estate_bots](https://github.com/ChunkyTortoise/jorge_real_estate_bots) -- Three-bot lead qualification system (Lead, Buyer, Seller)
 - [scrape-and-serve](https://github.com/ChunkyTortoise/scrape-and-serve) -- Web scraping, price monitoring, Excel-to-web apps, and SEO tools
+- [prompt-engineering-lab](https://github.com/ChunkyTortoise/prompt-engineering-lab) -- 8 prompt patterns, A/B testing, TF-IDF evaluation
+- [llm-integration-starter](https://github.com/ChunkyTortoise/llm-integration-starter) -- Production LLM patterns: completion, streaming, function calling, RAG, hardening
 - [Portfolio](https://chunkytortoise.github.io) -- Project showcase and services
 
 ## Deploy
