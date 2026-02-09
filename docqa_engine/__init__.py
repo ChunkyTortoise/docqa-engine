@@ -25,6 +25,13 @@ from docqa_engine.multi_hop import MultiHopResult, MultiHopRetriever, RetrievedP
 from docqa_engine.query_expansion import ExpandedQuery, QueryExpander
 from docqa_engine.reranker import CrossEncoderReranker, RerankReport, RerankResult
 from docqa_engine.summarizer import DocumentSummarizer, KeyPhrase, SummaryResult
+from docqa_engine.benchmark_runner import BenchmarkRegistry, BenchmarkResult, BenchmarkSuite
+from docqa_engine.context_compressor import (
+    Budget,
+    CompressedContext,
+    ContextCompressor,
+    TokenBudgetManager,
+)
 from docqa_engine.vector_store import (
     ChromaVectorStore,
     InMemoryVectorStore,
@@ -74,4 +81,11 @@ __all__ = [
     "Relationship",
     "RelationshipGraph",
     "create_vector_store",
+    "BenchmarkRegistry",
+    "BenchmarkResult",
+    "BenchmarkSuite",
+    "Budget",
+    "CompressedContext",
+    "ContextCompressor",
+    "TokenBudgetManager",
 ]
