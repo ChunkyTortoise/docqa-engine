@@ -136,3 +136,41 @@ class TestPipelineCompare:
             template_b="qa_detailed",
         )
         assert result is not None
+
+
+# ---------------------------------------------------------------------------
+# Vector backend configuration
+# ---------------------------------------------------------------------------
+
+
+class TestPipelineVectorBackend:
+    """Tests for pipeline vector_backend parameter."""
+
+    def test_default_is_memory(self) -> None:
+        p = DocQAPipeline()
+        assert p._vector_backend == "memory"
+
+    @pytest.mark.asyncio
+    async def test_memory_backend_works(self) -> None:
+        p = DocQAPipeline(vector_backend="memory")
+        p.ingest_text("Test document about AI and machine learning.")
+        answer = await p.ask("What is this about?")
+        assert answer is not None
+
+    @pytest.mark.asyncio
+    async def test_chroma_backend_works(self) -> None:
+        pytest.importorskip("chromadb")
+        p = DocQAPipeline(
+            vector_backend="chroma",
+            vector_kwargs={"collection_name": "pipeline_test"},
+        )
+        p.ingest_text("Test document about AI and machine learning.")
+        answer = await p.ask("What is this about?")
+        assert answer is not None
+
+    @pytest.mark.asyncio
+    async def test_invalid_backend_raises(self) -> None:
+        p = DocQAPipeline(vector_backend="invalid_db")
+        p.ingest_text("Some text.")
+        with pytest.raises(ValueError, match="Unknown vector backend"):
+            await p.ask("test")

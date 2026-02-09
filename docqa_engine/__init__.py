@@ -7,6 +7,12 @@ from docqa_engine.chunking import Chunk, Chunker, ChunkingComparison, ChunkingRe
 from docqa_engine.citation_scorer import CitationReport, CitationScore, CitationScorer
 from docqa_engine.evaluator import Evaluator
 from docqa_engine.exporter import Exporter
+from docqa_engine.vector_store import (
+    ChromaVectorStore,
+    PineconeVectorStore,
+    VectorStore,
+    create_vector_store,
+)
 
 __all__ = [
     "BatchProcessor",
@@ -18,7 +24,11 @@ __all__ = [
     "CitationReport",
     "CitationScore",
     "CitationScorer",
+    "ChromaVectorStore",
     "Evaluator",
     "Exporter",
+    "PineconeVectorStore",
     "QueryResult",
+    "VectorStore",
+    "create_vector_store",
 ]

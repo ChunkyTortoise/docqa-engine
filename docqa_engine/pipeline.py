@@ -10,6 +10,7 @@ from docqa_engine.embedder import TfidfEmbedder, embed_fn_factory
 from docqa_engine.ingest import DocumentChunk, IngestResult, ingest_file, ingest_txt
 from docqa_engine.prompt_lab import PromptComparison, PromptLibrary, compare_prompts
 from docqa_engine.retriever import HybridRetriever
+from docqa_engine.vector_store import create_vector_store
 
 
 class DocQAPipeline:
@@ -21,13 +22,19 @@ class DocQAPipeline:
     are cheap).
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        vector_backend: str = "memory",
+        vector_kwargs: dict | None = None,
+    ) -> None:
         self._embedder = TfidfEmbedder()
         self._retriever: HybridRetriever | None = None
         self._library = PromptLibrary()
         self._chunks: list[DocumentChunk] = []
         self._documents: list[IngestResult] = []
         self._dirty = True
+        self._vector_backend = vector_backend
+        self._vector_kwargs = vector_kwargs or {}
 
     # ------------------------------------------------------------------
     # Ingestion
@@ -62,8 +69,9 @@ class DocQAPipeline:
         self._embedder.fit(texts)
         embeddings = self._embedder.embed(texts)
 
+        dense_backend = create_vector_store(self._vector_backend, **self._vector_kwargs)
         embed_fn = embed_fn_factory(self._embedder)
-        self._retriever = HybridRetriever(embed_fn=embed_fn)
+        self._retriever = HybridRetriever(embed_fn=embed_fn, dense_backend=dense_backend)
         self._retriever.add_chunks(self._chunks, embeddings)
         self._dirty = False
 

@@ -250,3 +250,43 @@ class TestHybridRetriever:
         assert len(results) >= 1
         # With both indices, results come from RRF fusion
         assert results[0].source == "hybrid"
+
+    @pytest.mark.asyncio
+    async def test_custom_dense_backend(
+        self,
+        sample_chunks: list[DocumentChunk],
+        sample_embeddings: np.ndarray,
+    ) -> None:
+        """HybridRetriever accepts a custom dense_backend."""
+        custom_backend = DenseIndex()
+        retriever = HybridRetriever(dense_backend=custom_backend)
+        assert retriever.dense is custom_backend
+
+    def test_default_dense_backend_is_dense_index(self) -> None:
+        retriever = HybridRetriever()
+        assert isinstance(retriever.dense, DenseIndex)
+
+
+class TestDenseIndexResetAndLen:
+    """Tests for DenseIndex.reset() and DenseIndex.__len__()."""
+
+    def test_len_empty(self) -> None:
+        idx = DenseIndex()
+        assert len(idx) == 0
+
+    def test_len_with_data(
+        self, sample_chunks: list[DocumentChunk], sample_embeddings: np.ndarray
+    ) -> None:
+        idx = DenseIndex()
+        idx.add_chunks(sample_chunks, sample_embeddings)
+        assert len(idx) == 3
+
+    def test_reset(
+        self, sample_chunks: list[DocumentChunk], sample_embeddings: np.ndarray
+    ) -> None:
+        idx = DenseIndex()
+        idx.add_chunks(sample_chunks, sample_embeddings)
+        idx.reset()
+        assert len(idx) == 0
+        assert idx.embeddings is None
+        assert idx.chunks == []

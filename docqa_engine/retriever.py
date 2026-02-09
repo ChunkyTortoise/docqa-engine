@@ -107,6 +107,15 @@ class DenseIndex:
         else:
             self.embeddings = np.vstack([self.embeddings, embeddings])
 
+    def reset(self) -> None:
+        """Clear all chunks and embeddings."""
+        self.chunks = []
+        self.embeddings = None
+
+    def __len__(self) -> int:
+        """Return the number of indexed chunks."""
+        return 0 if self.embeddings is None else len(self.embeddings)
+
     def search(self, query_embedding: np.ndarray, top_k: int = 10) -> list[SearchResult]:
         """Search using cosine similarity."""
         if self.embeddings is None or len(self.embeddings) == 0:
@@ -158,9 +167,9 @@ def reciprocal_rank_fusion(result_lists: list[list[SearchResult]], k: int = 60, 
 class HybridRetriever:
     """Hybrid BM25 + Dense retriever with Reciprocal Rank Fusion."""
 
-    def __init__(self, embed_fn=None):
+    def __init__(self, embed_fn=None, dense_backend=None):
         self.bm25 = BM25Index()
-        self.dense = DenseIndex()
+        self.dense = dense_backend if dense_backend is not None else DenseIndex()
         self.embed_fn = embed_fn  # async callable: list[str] -> np.ndarray
 
     def add_chunks(self, chunks: list[DocumentChunk], embeddings: np.ndarray | None = None) -> None:
@@ -174,7 +183,7 @@ class HybridRetriever:
         bm25_results = self.bm25.search(query, top_k=top_k * 2)
 
         dense_results = []
-        if self.embed_fn and self.dense.embeddings is not None:
+        if self.embed_fn and len(self.dense) > 0:
             query_emb = await self.embed_fn([query])
             dense_results = self.dense.search(query_emb[0], top_k=top_k * 2)
 
