@@ -6,7 +6,7 @@
 
 ![CI](https://github.com/ChunkyTortoise/docqa-engine/actions/workflows/ci.yml/badge.svg)
 ![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)
-![Tests](https://img.shields.io/badge/tests-557%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-550%2B%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 [![Live Demo](https://img.shields.io/badge/Live_Demo-Streamlit_Cloud-FF4B4B.svg?logo=streamlit&logoColor=white)](https://ct-document-engine.streamlit.app)
 
@@ -64,7 +64,7 @@ flowchart TB
 
 | Metric | Value |
 |--------|-------|
-| Test Suite | 557 automated tests |
+| Test Suite | 550+ automated tests |
 | Retrieval Accuracy | Hybrid > BM25-only by 15-25% |
 | Re-Ranking Boost | +8-12% relevance improvement |
 | Query Latency | <100ms for 10K document corpus |
@@ -125,7 +125,7 @@ make demo
 | Embeddings | scikit-learn (TF-IDF) |
 | Retrieval | BM25 (Okapi) + Dense (cosine) + RRF |
 | Document Parsing | PyPDF2, python-docx |
-| Testing | pytest, pytest-asyncio (557 tests) |
+| Testing | pytest, pytest-asyncio (550+ tests) |
 | CI | GitHub Actions (Python 3.11, 3.12) |
 | Linting | Ruff |
 
@@ -148,7 +148,7 @@ docqa-engine/
 │   ├── cost_tracker.py             # Token + cost tracking
 │   └── pipeline.py                 # End-to-end pipeline
 ├── demo_docs/                      # 3 sample documents
-├── tests/                          # 26 test files, 557 tests
+├── tests/                          # 26 test files, 550+ tests
 ├── .github/workflows/ci.yml        # CI pipeline
 ├── Makefile                        # demo, test, lint, setup
 └── requirements.txt
@@ -166,7 +166,7 @@ docqa-engine/
 ## Testing
 
 ```bash
-make test                           # Full suite (557 tests)
+make test                           # Full suite (550+ tests)
 python -m pytest tests/ -v          # Verbose output
 python -m pytest tests/test_ingest.py  # Single module
 ```
