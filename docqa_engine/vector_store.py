@@ -1,4 +1,4 @@
-"""Vector Store Adapters: Protocol + ChromaDB + Pinecone backends."""
+"""Vector Store Adapters: Protocol + InMemory + ChromaDB + Pinecone backends."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Any, Protocol, runtime_checkable
 import numpy as np
 
 from docqa_engine.ingest import DocumentChunk
-from docqa_engine.retriever import SearchResult
+from docqa_engine.retriever import DenseIndex, SearchResult
 
 
 @runtime_checkable
@@ -15,7 +15,7 @@ class VectorStore(Protocol):
     """Structural interface for vector storage backends.
 
     Any class implementing ``add_chunks``, ``search``, ``reset``, and
-    ``__len__`` satisfies this protocol — no inheritance required.
+    ``__len__`` satisfies this protocol -- no inheritance required.
     """
 
     def add_chunks(self, chunks: list[DocumentChunk], embeddings: np.ndarray) -> None: ...
@@ -25,6 +25,27 @@ class VectorStore(Protocol):
     def reset(self) -> None: ...
 
     def __len__(self) -> int: ...
+
+
+# ---------- In-Memory ----------
+
+
+class InMemoryVectorStore(DenseIndex):
+    """In-memory vector store wrapping DenseIndex with convenience aliases.
+
+    Subclasses :class:`DenseIndex` so it is fully backward-compatible
+    (passes ``isinstance(store, DenseIndex)`` checks) while exposing the
+    ``clear()`` and ``count()`` helpers expected by the ``VectorStore``
+    protocol extensions.
+    """
+
+    def clear(self) -> None:
+        """Alias for :meth:`reset` -- remove all indexed data."""
+        self.reset()
+
+    def count(self) -> int:
+        """Alias for ``len(self)`` -- return the number of indexed chunks."""
+        return len(self)
 
 
 # ---------- ChromaDB ----------
@@ -113,6 +134,14 @@ class ChromaVectorStore:
         )
         self._chunks.clear()
 
+    def clear(self) -> None:
+        """Alias for :meth:`reset` -- remove all indexed data."""
+        self.reset()
+
+    def count(self) -> int:
+        """Return the number of indexed vectors."""
+        return len(self)
+
     def __len__(self) -> int:
         return self._collection.count()
 
@@ -192,6 +221,14 @@ class PineconeVectorStore:
         self._chunks.clear()
         self._count = 0
 
+    def clear(self) -> None:
+        """Alias for :meth:`reset` -- remove all indexed data."""
+        self.reset()
+
+    def count(self) -> int:
+        """Return the number of indexed vectors."""
+        return len(self)
+
     def __len__(self) -> int:
         return self._count
 
@@ -210,9 +247,7 @@ def create_vector_store(backend: str = "memory", **kwargs: Any) -> Any:
         A vector store instance satisfying the ``VectorStore`` protocol.
     """
     if backend == "memory":
-        from docqa_engine.retriever import DenseIndex
-
-        return DenseIndex()
+        return InMemoryVectorStore()
     elif backend == "chroma":
         return ChromaVectorStore(**kwargs)
     elif backend == "pinecone":

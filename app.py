@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from pathlib import Path
 
 import streamlit as st
@@ -11,12 +12,114 @@ from docqa_engine.chunking import Chunker
 from docqa_engine.pipeline import DocQAPipeline
 
 DEMO_DIR = Path(__file__).parent / "demo_docs"
+SESSION_TIMEOUT_SECONDS = 30 * 60  # 30 minutes
+
+
+def _touch_session() -> None:
+    """Update the last-activity timestamp for inactivity tracking."""
+    st.session_state["_last_activity"] = time.time()
+
+
+def _check_inactivity_reset() -> bool:
+    """Check if the session has been inactive for too long and auto-reset.
+
+    Returns True if the session was reset due to inactivity.
+    """
+    last = st.session_state.get("_last_activity")
+    if last is None:
+        _touch_session()
+        return False
+    elapsed = time.time() - last
+    if elapsed > SESSION_TIMEOUT_SECONDS and "pipeline" in st.session_state:
+        stats = st.session_state.pipeline.get_stats()
+        if stats.get("documents", 0) > 0:
+            st.session_state.pipeline.reset()
+            st.session_state["_session_reset_reason"] = "inactivity"
+            _touch_session()
+            return True
+    _touch_session()
+    return False
+
+
+def _render_session_controls() -> None:
+    """Render session management controls in the sidebar."""
+    st.sidebar.divider()
+    st.sidebar.subheader("Session")
+
+    if "pipeline" in st.session_state:
+        stats = st.session_state.pipeline.get_stats()
+        doc_count = stats.get("documents", 0)
+        chunk_count = stats.get("chunk_count", 0)
+
+        if doc_count > 0:
+            st.sidebar.caption(f"{doc_count} doc(s), {chunk_count} chunk(s) loaded")
+            if st.sidebar.button("Start New Demo", type="secondary"):
+                st.session_state.pipeline.reset()
+                st.session_state["_session_reset_reason"] = "manual"
+                _touch_session()
+                st.rerun()
+        else:
+            st.sidebar.caption("No documents loaded yet")
+
+    # Show reset notification
+    reason = st.session_state.pop("_session_reset_reason", None)
+    if reason == "inactivity":
+        st.sidebar.info("Session auto-reset after 30 min of inactivity.")
+    elif reason == "manual":
+        st.sidebar.success("Session reset. Ready for a new demo.")
+
+
+def _vector_store_sidebar() -> tuple[str, dict]:
+    """Render vector store selector in the sidebar and return (backend, kwargs)."""
+    st.sidebar.divider()
+    st.sidebar.subheader("Vector Store")
+
+    options = ["In-Memory (default)", "ChromaDB (persistent)"]
+    selection = st.sidebar.selectbox("Backend:", options, key="vector_store_backend")
+
+    backend = "memory"
+    kwargs: dict = {}
+
+    if selection == "ChromaDB (persistent)":
+        backend = "chroma"
+        persist_dir = st.sidebar.text_input(
+            "Persist directory:",
+            value="",
+            placeholder="/tmp/docqa_chroma",
+            key="chroma_persist_dir",
+        )
+        collection = st.sidebar.text_input(
+            "Collection name:",
+            value="docqa",
+            key="chroma_collection",
+        )
+        kwargs["collection_name"] = collection
+        if persist_dir.strip():
+            kwargs["persist_directory"] = persist_dir.strip()
+
+    return backend, kwargs
 
 
 def get_pipeline() -> DocQAPipeline:
-    """Get or create the pipeline in session state."""
-    if "pipeline" not in st.session_state:
-        st.session_state.pipeline = DocQAPipeline()
+    """Get or create the pipeline in session state, respecting vector store selection."""
+    backend, kwargs = _vector_store_sidebar()
+
+    # Recreate pipeline when backend config changes
+    prev_backend = st.session_state.get("_prev_vector_backend", "memory")
+    prev_kwargs = st.session_state.get("_prev_vector_kwargs", {})
+
+    if (
+        "pipeline" not in st.session_state
+        or backend != prev_backend
+        or kwargs != prev_kwargs
+    ):
+        st.session_state.pipeline = DocQAPipeline(
+            vector_backend=backend,
+            vector_kwargs=kwargs,
+        )
+        st.session_state["_prev_vector_backend"] = backend
+        st.session_state["_prev_vector_kwargs"] = kwargs
+
     return st.session_state.pipeline
 
 
@@ -55,23 +158,39 @@ def render_documents_tab(pipeline: DocQAPipeline) -> None:
                 st.warning("No demo documents found in demo_docs/")
     else:
         uploaded_files = st.file_uploader(
-            "Upload documents",
+            "Drop your documents here",
             type=["txt", "md", "pdf", "docx", "csv"],
             accept_multiple_files=True,
+            help="Supported: TXT, MD, PDF, DOCX, CSV",
         )
-        if uploaded_files and st.button("Ingest Uploaded Files"):
+        if uploaded_files:
+            # Show file list with status
             for uf in uploaded_files:
-                content = uf.read()
-                if uf.name.endswith((".txt", ".md", ".csv")):
-                    text = content.decode("utf-8", errors="replace")
-                    pipeline.ingest_text(text, filename=uf.name)
-                else:
-                    import tempfile
+                size_kb = len(uf.getvalue()) / 1024
+                st.caption(f"  {uf.name} ({size_kb:.1f} KB)")
 
-                    with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{uf.name}") as tmp:
-                        tmp.write(content)
-                        pipeline.ingest(tmp.name)
-            st.success(f"Ingested {len(uploaded_files)} file(s)")
+            if st.button("Ingest Uploaded Files", type="primary"):
+                progress = st.progress(0, text="Ingesting files...")
+                total = len(uploaded_files)
+                for i, uf in enumerate(uploaded_files):
+                    progress.progress(
+                        (i + 1) / total,
+                        text=f"Processing {uf.name} ({i + 1}/{total})...",
+                    )
+                    content = uf.read()
+                    if uf.name.endswith((".txt", ".md", ".csv")):
+                        text = content.decode("utf-8", errors="replace")
+                        pipeline.ingest_text(text, filename=uf.name)
+                    else:
+                        import tempfile
+
+                        with tempfile.NamedTemporaryFile(
+                            delete=False, suffix=f"_{uf.name}"
+                        ) as tmp:
+                            tmp.write(content)
+                            pipeline.ingest(tmp.name)
+                progress.empty()
+                st.success(f"Ingested {total} file(s)")
 
     # Display ingested documents
     stats = pipeline.get_stats()
@@ -80,7 +199,12 @@ def render_documents_tab(pipeline: DocQAPipeline) -> None:
 
     if doc_count > 0:
         st.divider()
-        st.subheader("Ingested Documents")
+        col_header, col_badge = st.columns([3, 1])
+        with col_header:
+            st.subheader("Ingested Documents")
+        with col_badge:
+            st.success("Demo Ready")
+
         col1, col2, col3 = st.columns(3)
         col1.metric("Documents", doc_count)
         col2.metric("Chunks", chunk_count)
@@ -294,7 +418,9 @@ def main() -> None:
     st.title("DocQA Engine")
     st.caption("Upload documents, ask questions -- get cited answers with a prompt engineering lab")
 
+    _check_inactivity_reset()
     pipeline = get_pipeline()
+    _render_session_controls()
 
     tab_docs, tab_ask, tab_lab, tab_chunk, tab_stats = st.tabs(
         ["Documents", "Ask Questions", "Prompt Lab", "Chunking Lab", "Stats"]

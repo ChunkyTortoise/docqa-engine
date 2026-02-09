@@ -9,6 +9,7 @@ from docqa_engine.evaluator import Evaluator
 from docqa_engine.exporter import Exporter
 from docqa_engine.vector_store import (
     ChromaVectorStore,
+    InMemoryVectorStore,
     PineconeVectorStore,
     VectorStore,
     create_vector_store,
@@ -27,6 +28,7 @@ __all__ = [
     "ChromaVectorStore",
     "Evaluator",
     "Exporter",
+    "InMemoryVectorStore",
     "PineconeVectorStore",
     "QueryResult",
     "VectorStore",

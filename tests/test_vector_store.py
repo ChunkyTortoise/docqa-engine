@@ -10,6 +10,7 @@ import pytest
 from docqa_engine.ingest import DocumentChunk
 from docqa_engine.retriever import DenseIndex, SearchResult
 from docqa_engine.vector_store import (
+    InMemoryVectorStore,
     VectorStore,
     create_vector_store,
 )
@@ -47,6 +48,14 @@ class TestVectorStoreProtocol:
     def test_dense_index_satisfies_protocol(self) -> None:
         idx = DenseIndex()
         assert isinstance(idx, VectorStore)
+
+    def test_in_memory_satisfies_protocol(self) -> None:
+        store = InMemoryVectorStore()
+        assert isinstance(store, VectorStore)
+
+    def test_in_memory_is_dense_index_subclass(self) -> None:
+        store = InMemoryVectorStore()
+        assert isinstance(store, DenseIndex)
 
     def test_chroma_satisfies_protocol(self) -> None:
         chromadb = pytest.importorskip("chromadb")  # noqa: F841
@@ -95,6 +104,89 @@ class TestDenseIndexExtensions:
         idx.reset()
         query = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
         assert idx.search(query) == []
+
+
+# ---------------------------------------------------------------------------
+# InMemoryVectorStore
+# ---------------------------------------------------------------------------
+
+
+class TestInMemoryVectorStore:
+    """Tests for InMemoryVectorStore -- DenseIndex subclass with clear()/count()."""
+
+    def test_add_chunks_and_search(self, sample_chunks, sample_embeddings) -> None:
+        store = InMemoryVectorStore()
+        store.add_chunks(sample_chunks, sample_embeddings)
+        query = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+        results = store.search(query, top_k=2)
+        assert len(results) >= 1
+        assert isinstance(results[0], SearchResult)
+        assert results[0].chunk.chunk_id == "c1"
+
+    def test_search_empty_store(self) -> None:
+        store = InMemoryVectorStore()
+        query = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+        results = store.search(query, top_k=5)
+        assert results == []
+
+    def test_clear_removes_all_data(self, sample_chunks, sample_embeddings) -> None:
+        store = InMemoryVectorStore()
+        store.add_chunks(sample_chunks, sample_embeddings)
+        assert store.count() == 3
+        store.clear()
+        assert store.count() == 0
+        assert store.chunks == []
+        assert store.embeddings is None
+
+    def test_count_tracks_indexed_chunks(self, sample_chunks, sample_embeddings) -> None:
+        store = InMemoryVectorStore()
+        assert store.count() == 0
+        store.add_chunks(sample_chunks, sample_embeddings)
+        assert store.count() == 3
+
+    def test_count_matches_len(self, sample_chunks, sample_embeddings) -> None:
+        store = InMemoryVectorStore()
+        store.add_chunks(sample_chunks, sample_embeddings)
+        assert store.count() == len(store)
+
+    def test_clear_is_alias_for_reset(self, sample_chunks, sample_embeddings) -> None:
+        store = InMemoryVectorStore()
+        store.add_chunks(sample_chunks, sample_embeddings)
+        store.clear()
+        # After clear, search should return empty (same as reset)
+        query = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+        assert store.search(query) == []
+
+    def test_duplicate_add_extends(self, sample_chunks, sample_embeddings) -> None:
+        store = InMemoryVectorStore()
+        store.add_chunks(sample_chunks, sample_embeddings)
+        assert store.count() == 3
+        # Adding the same chunks again extends the index
+        store.add_chunks(sample_chunks, sample_embeddings)
+        assert store.count() == 6
+
+    def test_cosine_similarity_ranking(self) -> None:
+        """Chunks closer in embedding space should rank higher."""
+        store = InMemoryVectorStore()
+        chunks = [
+            DocumentChunk(chunk_id="near", document_id="d1", content="near"),
+            DocumentChunk(chunk_id="far", document_id="d1", content="far"),
+        ]
+        embeddings = np.array(
+            [[0.9, 0.1, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]],
+            dtype=np.float32,
+        )
+        store.add_chunks(chunks, embeddings)
+        query = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+        results = store.search(query, top_k=2)
+        assert results[0].chunk.chunk_id == "near"
+
+    def test_inherits_dense_index_search_source(self, sample_chunks, sample_embeddings) -> None:
+        store = InMemoryVectorStore()
+        store.add_chunks(sample_chunks, sample_embeddings)
+        query = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+        results = store.search(query, top_k=1)
+        assert results[0].source == "dense"
 
 
 # ---------------------------------------------------------------------------
@@ -153,6 +245,17 @@ class TestChromaVectorStore:
         results = chroma_store.search(query, top_k=3)
         for r in results:
             assert 0.0 <= r.score <= 1.0
+
+    def test_clear_alias(self, chroma_store, sample_chunks, sample_embeddings) -> None:
+        chroma_store.add_chunks(sample_chunks, sample_embeddings)
+        assert chroma_store.count() == 3
+        chroma_store.clear()
+        assert chroma_store.count() == 0
+
+    def test_count_alias(self, chroma_store, sample_chunks, sample_embeddings) -> None:
+        assert chroma_store.count() == 0
+        chroma_store.add_chunks(sample_chunks, sample_embeddings)
+        assert chroma_store.count() == len(chroma_store)
 
     def test_persistence(self, tmp_path, sample_chunks, sample_embeddings) -> None:
         from docqa_engine.vector_store import ChromaVectorStore
@@ -252,6 +355,19 @@ class TestPineconeVectorStore:
         results = pinecone_store.search(query, top_k=5)
         assert results == []
 
+    def test_clear_alias(self, pinecone_store, sample_chunks, sample_embeddings, mock_pinecone) -> None:
+        _, mock_index = mock_pinecone
+        pinecone_store.add_chunks(sample_chunks, sample_embeddings)
+        pinecone_store.clear()
+        mock_index.delete.assert_called_once_with(delete_all=True, namespace="")
+        assert pinecone_store.count() == 0
+
+    def test_count_alias(self, pinecone_store, sample_chunks, sample_embeddings) -> None:
+        assert pinecone_store.count() == 0
+        pinecone_store.add_chunks(sample_chunks, sample_embeddings)
+        assert pinecone_store.count() == len(pinecone_store)
+        assert pinecone_store.count() == 3
+
 
 # ---------------------------------------------------------------------------
 # Factory
@@ -264,7 +380,14 @@ class TestCreateVectorStore:
     def test_memory_backend(self) -> None:
         store = create_vector_store("memory")
         assert isinstance(store, DenseIndex)
+        assert isinstance(store, InMemoryVectorStore)
         assert isinstance(store, VectorStore)
+
+    def test_memory_backend_has_clear_and_count(self) -> None:
+        store = create_vector_store("memory")
+        assert hasattr(store, "clear")
+        assert hasattr(store, "count")
+        assert store.count() == 0
 
     def test_chroma_backend(self) -> None:
         pytest.importorskip("chromadb")

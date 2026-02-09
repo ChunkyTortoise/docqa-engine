@@ -139,6 +139,18 @@ class DocQAPipeline:
     # Introspection
     # ------------------------------------------------------------------
 
+    def reset(self) -> None:
+        """Clear all documents, chunks, and retriever state.
+
+        Resets the pipeline to its initial empty state so new documents
+        can be ingested from scratch.  Safe to call multiple times.
+        """
+        self._chunks.clear()
+        self._documents.clear()
+        self._retriever = None
+        self._embedder = TfidfEmbedder()
+        self._dirty = True
+
     def get_stats(self) -> dict:
         """Return document count, chunk count, and total characters ingested."""
         doc_count = len(self._documents)
