@@ -43,3 +43,10 @@ Thumbs.db
 
 # Project-specific
 demo_docs/*.generated
+
+# Added by deep clean
+*~
+.hypothesis/
+coverage.xml
+.mypy_cache/
+*.log
