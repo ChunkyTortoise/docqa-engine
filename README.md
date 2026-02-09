@@ -154,6 +154,15 @@ docqa-engine/
 └── requirements.txt
 ```
 
+## Architecture Decisions
+
+| ADR | Title | Status |
+|-----|-------|--------|
+| [ADR-0001](docs/adr/0001-hybrid-retrieval-strategy.md) | Hybrid Retrieval Strategy | Accepted |
+| [ADR-0002](docs/adr/0002-tfidf-local-embeddings.md) | TF-IDF Local Embeddings | Accepted |
+| [ADR-0003](docs/adr/0003-citation-scoring-framework.md) | Citation Scoring Framework | Accepted |
+| [ADR-0004](docs/adr/0004-rest-api-wrapper-design.md) | REST API Wrapper Design | Accepted |
+
 ## Testing
 
 ```bash
@@ -161,6 +170,18 @@ make test                           # Full suite (557 tests)
 python -m pytest tests/ -v          # Verbose output
 python -m pytest tests/test_ingest.py  # Single module
 ```
+
+## Benchmarks
+
+See [BENCHMARKS.md](BENCHMARKS.md) for detailed performance data.
+
+```bash
+python -m benchmarks.run_all
+```
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## Related Projects
 
