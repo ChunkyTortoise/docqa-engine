@@ -213,6 +213,15 @@ def render_documents_tab(pipeline: DocQAPipeline) -> None:
         st.caption("No documents ingested yet. Load demo docs or upload files to get started.")
 
 
+DEMO_QUESTIONS = [
+    "What is the main topic of these documents?",
+    "Summarize the key findings",
+    "What are the most important dates or deadlines?",
+    "List any recommendations or action items",
+    "What risks or concerns are mentioned?",
+]
+
+
 def render_ask_tab(pipeline: DocQAPipeline) -> None:
     """Render the Ask Questions tab."""
     st.subheader("Ask a Question")
@@ -222,18 +231,38 @@ def render_ask_tab(pipeline: DocQAPipeline) -> None:
         st.warning("No documents loaded. Go to the Documents tab first.")
         return
 
-    question = st.text_input("Your question:", placeholder="What is a list comprehension in Python?")
+    # Demo questions
+    with st.expander("Try a demo question", expanded=False):
+        cols = st.columns(len(DEMO_QUESTIONS))
+        for i, (col, q) in enumerate(zip(cols, DEMO_QUESTIONS)):
+            with col:
+                if st.button(q[:25] + "...", key=f"demo_q_{i}", help=q):
+                    st.session_state["_ask_question"] = q
+
+    default_q = st.session_state.pop("_ask_question", "")
+    question = st.text_input(
+        "Your question:",
+        value=default_q,
+        placeholder="What is a list comprehension in Python?",
+    )
 
     # Template selector
     templates = pipeline.prompt_library.list_templates()
     template_names = [t.name for t in templates]
     selected_template = st.selectbox("Prompt template:", template_names)
 
-    if st.button("Ask") and question:
+    if st.button("Ask", type="primary") and question:
+        import time as _time
+
+        t0 = _time.perf_counter()
         with st.spinner("Searching and generating answer..."):
             answer = run_async(pipeline.ask(question, template=selected_template))
+        elapsed_ms = (_time.perf_counter() - t0) * 1000
 
         st.markdown(f"**Answer:**\n\n{answer.answer_text}")
+
+        # Copy button for answer
+        st.code(answer.answer_text, language=None)
 
         if answer.citations:
             st.divider()
@@ -241,13 +270,19 @@ def render_ask_tab(pipeline: DocQAPipeline) -> None:
             for i, cit in enumerate(answer.citations, 1):
                 page_ref = f" (p.{cit.page_number})" if cit.page_number else ""
                 source_name = cit.source or "unknown"
+                confidence = "High" if cit.relevance_score > 0.7 else (
+                    "Medium" if cit.relevance_score > 0.4 else "Low"
+                )
                 st.markdown(
                     f"{i}. **{source_name}**{page_ref} "
-                    f"(score: {cit.relevance_score:.3f}) -- "
+                    f"(score: {cit.relevance_score:.3f}, {confidence}) -- "
                     f"_{cit.content_snippet[:120]}..._"
                 )
 
-        st.caption(f"Provider: {answer.provider} | Model: {answer.model} | Tokens: {answer.tokens_used}")
+        st.caption(
+            f"Provider: {answer.provider} | Model: {answer.model} | "
+            f"Tokens: {answer.tokens_used} | Retrieval: {elapsed_ms:.0f}ms"
+        )
 
 
 def render_prompt_lab_tab(pipeline: DocQAPipeline) -> None:
