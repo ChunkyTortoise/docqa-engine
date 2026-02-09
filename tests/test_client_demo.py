@@ -156,10 +156,7 @@ class TestLargeDocumentHandling:
     @pytest.mark.asyncio
     async def test_large_text_askable(self) -> None:
         pipeline = DocQAPipeline()
-        large_text = (
-            "Machine learning uses algorithms. " * 2000
-            + "Deep learning uses neural networks. " * 2000
-        )
+        large_text = "Machine learning uses algorithms. " * 2000 + "Deep learning uses neural networks. " * 2000
         pipeline.ingest_text(large_text, filename="ml_large.txt")
 
         answer = await pipeline.ask("What does machine learning use?")

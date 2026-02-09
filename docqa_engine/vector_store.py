@@ -66,9 +66,7 @@ class ChromaVectorStore:
         try:
             import chromadb
         except ImportError:
-            raise ImportError(
-                "chromadb required for ChromaDB vector store: pip install chromadb"
-            )
+            raise ImportError("chromadb required for ChromaDB vector store: pip install chromadb")
 
         if persist_directory:
             self._client = chromadb.PersistentClient(path=persist_directory)
@@ -164,9 +162,7 @@ class PineconeVectorStore:
         try:
             from pinecone import Pinecone
         except ImportError:
-            raise ImportError(
-                "pinecone required for Pinecone vector store: pip install pinecone"
-            )
+            raise ImportError("pinecone required for Pinecone vector store: pip install pinecone")
 
         self._pc = Pinecone(api_key=api_key)
         self._index = self._pc.Index(index_name)
@@ -253,7 +249,4 @@ def create_vector_store(backend: str = "memory", **kwargs: Any) -> Any:
     elif backend == "pinecone":
         return PineconeVectorStore(**kwargs)
     else:
-        raise ValueError(
-            f"Unknown vector backend: {backend!r}. "
-            f"Choose from 'memory', 'chroma', 'pinecone'."
-        )
+        raise ValueError(f"Unknown vector backend: {backend!r}. Choose from 'memory', 'chroma', 'pinecone'.")

@@ -274,16 +274,12 @@ class TestDenseIndexResetAndLen:
         idx = DenseIndex()
         assert len(idx) == 0
 
-    def test_len_with_data(
-        self, sample_chunks: list[DocumentChunk], sample_embeddings: np.ndarray
-    ) -> None:
+    def test_len_with_data(self, sample_chunks: list[DocumentChunk], sample_embeddings: np.ndarray) -> None:
         idx = DenseIndex()
         idx.add_chunks(sample_chunks, sample_embeddings)
         assert len(idx) == 3
 
-    def test_reset(
-        self, sample_chunks: list[DocumentChunk], sample_embeddings: np.ndarray
-    ) -> None:
+    def test_reset(self, sample_chunks: list[DocumentChunk], sample_embeddings: np.ndarray) -> None:
         idx = DenseIndex()
         idx.add_chunks(sample_chunks, sample_embeddings)
         idx.reset()

@@ -261,16 +261,12 @@ class TestChromaVectorStore:
         from docqa_engine.vector_store import ChromaVectorStore
 
         persist_dir = str(tmp_path / "chroma_persist")
-        store1 = ChromaVectorStore(
-            collection_name="persist_test", persist_directory=persist_dir
-        )
+        store1 = ChromaVectorStore(collection_name="persist_test", persist_directory=persist_dir)
         store1.add_chunks(sample_chunks, sample_embeddings)
         assert len(store1) == 3
 
         # Re-open from disk — data should still be there
-        store2 = ChromaVectorStore(
-            collection_name="persist_test", persist_directory=persist_dir
-        )
+        store2 = ChromaVectorStore(collection_name="persist_test", persist_directory=persist_dir)
         assert len(store2) == 3
 
 
@@ -321,10 +317,7 @@ class TestPineconeVectorStore:
 
     def test_batch_upsert_250_items(self, pinecone_store, mock_pinecone) -> None:
         _, mock_index = mock_pinecone
-        chunks = [
-            DocumentChunk(chunk_id=f"c{i}", document_id="d1", content=f"chunk {i}")
-            for i in range(250)
-        ]
+        chunks = [DocumentChunk(chunk_id=f"c{i}", document_id="d1", content=f"chunk {i}") for i in range(250)]
         embeddings = np.random.rand(250, 4).astype(np.float32)
         pinecone_store.add_chunks(chunks, embeddings)
         # 250 / 100 = 3 batches

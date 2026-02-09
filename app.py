@@ -108,11 +108,7 @@ def get_pipeline() -> DocQAPipeline:
     prev_backend = st.session_state.get("_prev_vector_backend", "memory")
     prev_kwargs = st.session_state.get("_prev_vector_kwargs", {})
 
-    if (
-        "pipeline" not in st.session_state
-        or backend != prev_backend
-        or kwargs != prev_kwargs
-    ):
+    if "pipeline" not in st.session_state or backend != prev_backend or kwargs != prev_kwargs:
         st.session_state.pipeline = DocQAPipeline(
             vector_backend=backend,
             vector_kwargs=kwargs,
@@ -184,9 +180,7 @@ def render_documents_tab(pipeline: DocQAPipeline) -> None:
                     else:
                         import tempfile
 
-                        with tempfile.NamedTemporaryFile(
-                            delete=False, suffix=f"_{uf.name}"
-                        ) as tmp:
+                        with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{uf.name}") as tmp:
                             tmp.write(content)
                             pipeline.ingest(tmp.name)
                 progress.empty()
@@ -270,9 +264,7 @@ def render_ask_tab(pipeline: DocQAPipeline) -> None:
             for i, cit in enumerate(answer.citations, 1):
                 page_ref = f" (p.{cit.page_number})" if cit.page_number else ""
                 source_name = cit.source or "unknown"
-                confidence = "High" if cit.relevance_score > 0.7 else (
-                    "Medium" if cit.relevance_score > 0.4 else "Low"
-                )
+                confidence = "High" if cit.relevance_score > 0.7 else ("Medium" if cit.relevance_score > 0.4 else "Low")
                 st.markdown(
                     f"{i}. **{source_name}**{page_ref} "
                     f"(score: {cit.relevance_score:.3f}, {confidence}) -- "
