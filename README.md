@@ -1,3 +1,5 @@
+[![Sponsor](https://img.shields.io/badge/Sponsor-💖-pink.svg)](https://github.com/sponsors/ChunkyTortoise)
+
 # docqa-engine
 
 **Upload documents, ask questions -- get cited answers with a prompt engineering lab.**
