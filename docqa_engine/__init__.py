@@ -6,10 +6,25 @@ from docqa_engine.answer_quality import AnswerComparison, AnswerQualityScorer, Q
 from docqa_engine.batch import BatchProcessor, BatchResult, QueryResult
 from docqa_engine.chunking import Chunk, Chunker, ChunkingComparison, ChunkingResult
 from docqa_engine.citation_scorer import CitationReport, CitationScore, CitationScorer
+from docqa_engine.conversation_manager import (
+    ContextAwareExpander,
+    ConversationContext,
+    ConversationHistory,
+    ConversationTurn,
+)
+from docqa_engine.document_graph import (
+    DocumentNode,
+    GraphBuilder,
+    GraphRetriever,
+    Relationship,
+    RelationshipGraph,
+)
 from docqa_engine.evaluator import Evaluator
 from docqa_engine.exporter import Exporter
+from docqa_engine.multi_hop import MultiHopResult, MultiHopRetriever, RetrievedPassage
 from docqa_engine.query_expansion import ExpandedQuery, QueryExpander
 from docqa_engine.reranker import CrossEncoderReranker, RerankReport, RerankResult
+from docqa_engine.summarizer import DocumentSummarizer, KeyPhrase, SummaryResult
 from docqa_engine.vector_store import (
     ChromaVectorStore,
     InMemoryVectorStore,
@@ -43,5 +58,20 @@ __all__ = [
     "RerankReport",
     "RerankResult",
     "VectorStore",
+    "DocumentSummarizer",
+    "KeyPhrase",
+    "MultiHopResult",
+    "MultiHopRetriever",
+    "RetrievedPassage",
+    "SummaryResult",
+    "ContextAwareExpander",
+    "ConversationContext",
+    "ConversationHistory",
+    "ConversationTurn",
+    "DocumentNode",
+    "GraphBuilder",
+    "GraphRetriever",
+    "Relationship",
+    "RelationshipGraph",
     "create_vector_store",
 ]
