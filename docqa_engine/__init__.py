@@ -2,11 +2,14 @@
 
 __version__ = "0.1.0"
 
+from docqa_engine.answer_quality import AnswerComparison, AnswerQualityScorer, QualityReport
 from docqa_engine.batch import BatchProcessor, BatchResult, QueryResult
 from docqa_engine.chunking import Chunk, Chunker, ChunkingComparison, ChunkingResult
 from docqa_engine.citation_scorer import CitationReport, CitationScore, CitationScorer
 from docqa_engine.evaluator import Evaluator
 from docqa_engine.exporter import Exporter
+from docqa_engine.query_expansion import ExpandedQuery, QueryExpander
+from docqa_engine.reranker import CrossEncoderReranker, RerankReport, RerankResult
 from docqa_engine.vector_store import (
     ChromaVectorStore,
     InMemoryVectorStore,
@@ -16,6 +19,8 @@ from docqa_engine.vector_store import (
 )
 
 __all__ = [
+    "AnswerComparison",
+    "AnswerQualityScorer",
     "BatchProcessor",
     "BatchResult",
     "Chunk",
@@ -26,11 +31,17 @@ __all__ = [
     "CitationScore",
     "CitationScorer",
     "ChromaVectorStore",
+    "CrossEncoderReranker",
     "Evaluator",
+    "ExpandedQuery",
     "Exporter",
     "InMemoryVectorStore",
     "PineconeVectorStore",
+    "QualityReport",
+    "QueryExpander",
     "QueryResult",
+    "RerankReport",
+    "RerankResult",
     "VectorStore",
     "create_vector_store",
 ]
