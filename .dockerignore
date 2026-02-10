@@ -1,0 +1,103 @@
+# =============================================================================
+# DocQA Engine - Docker Ignore File
+# =============================================================================
+# Reduces build context size and prevents unwanted files from being copied
+# into the Docker image.
+
+# Version control
+.git/
+.gitignore
+.gitattributes
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+*.egg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+
+# Docker (prevent recursive builds)
+Dockerfile*
+docker-compose*.yml
+.docker/
+.dockerignore
+
+# Documentation
+*.md
+!README.md
+docs/
+LICENSE
+CHANGELOG.md
+CONTRIBUTING.md
+SECURITY.md
+CODE_OF_CONDUCT.md
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+
+# Test files (not needed in production image)
+tests/
+test_*.py
+*_test.py
+conftest.py
+benchmarks/
+
+# Build artifacts
+dist/
+build/
+*.whl
+
+# Local development
+.env
+.env.*
+*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.log
+
+# Uploads (will be mounted as volume)
+uploads/
+
+# Chroma persistence (will be mounted if needed)
+chroma_data/
+.chroma/
+
+# Jupyter notebooks (development only)
+*.ipynb
+.ipynb_checkpoints/

@@ -109,6 +109,59 @@ make test
 make demo
 ```
 
+## Docker Quick Start
+
+The fastest way to run DocQA Engine with Docker:
+
+```bash
+# Clone and start
+git clone https://github.com/ChunkyTortoise/docqa-engine.git
+cd docqa-engine
+docker-compose up -d
+
+# Open http://localhost:8501
+```
+
+### Docker Commands
+
+| Command | Description |
+|---------|-------------|
+| `docker-compose up -d` | Start demo in background |
+| `docker-compose down` | Stop and remove containers |
+| `docker-compose logs -f` | View logs |
+| `docker-compose build` | Rebuild image |
+
+### Docker Build (Manual)
+
+```bash
+# Build the image
+docker build -t docqa-engine .
+
+# Run the container
+docker run -p 8501:8501 -v ./uploads:/app/uploads docqa-engine
+
+# Open http://localhost:8501
+```
+
+### With API Keys (Optional)
+
+To enable LLM-powered answer generation:
+
+```bash
+# Create .env file with your API keys
+echo "ANTHROPIC_API_KEY=your_key_here" > .env
+
+# Start with environment variables
+docker-compose --env-file .env up -d
+```
+
+### Image Size
+
+The optimized multi-stage build produces images under 500MB:
+- Base: Python 3.11 slim (~150MB)
+- Dependencies: scikit-learn, Streamlit, etc. (~200MB)
+- Application: ~50MB
+
 ## Demo Documents
 
 | Document | Topic | Content |

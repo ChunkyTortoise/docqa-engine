@@ -1,0 +1,50 @@
+# =============================================================================
+# DocQA Engine - API Dockerfile (FastAPI)
+# =============================================================================
+# Use this for REST API deployments
+# Build: docker build -f Dockerfile.api -t docqa-api .
+
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# -----------------------------------------------------------------------------
+FROM python:3.11-slim AS runtime
+
+WORKDIR /app
+
+RUN groupadd --gid 1000 docqa && \
+    useradd --uid 1000 --gid docqa --shell /bin/bash --create-home docqa
+
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+COPY --chown=docqa:docqa . .
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+EXPOSE 8000
+
+USER docqa
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl --fail http://localhost:8000/docs || exit 1
+
+CMD ["uvicorn", "docqa_engine.api:create_app", "--host", "0.0.0.0", "--port", "8000", "--factory"]

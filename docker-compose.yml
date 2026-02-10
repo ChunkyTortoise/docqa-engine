@@ -1,24 +1,60 @@
-version: "3.9"
+# =============================================================================
+# DocQA Engine - Docker Compose Configuration
+# =============================================================================
+# Quick start: docker-compose up -d
+# Access the app at: http://localhost:8501
 
 services:
+  # ---------------------------------------------------------------------------
+  # Streamlit Demo App (Default)
+  # ---------------------------------------------------------------------------
+  demo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: docqa-engine:latest
+    container_name: docqa-demo
+    ports:
+      - "8501:8501"
+    environment:
+      # Demo mode - no API keys required (uses TF-IDF fallback)
+      - DEMO_MODE=true
+      - PYTHONUNBUFFERED=1
+      # Optional: Add API keys for enhanced features
+      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    volumes:
+      # Persist uploaded documents
+      - ./uploads:/app/uploads
+      # Optional: Persist ChromaDB data
+      # - ./chroma_data:/app/chroma_data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8501/_stcore/health" ]
+      interval: 30s
+      timeout: 10s
+      start_period: 10s
+      retries: 3
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # FastAPI Service (Optional - for REST API access)
+  # ---------------------------------------------------------------------------
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    image: docqa-api:latest
+    container_name: docqa-api
     ports:
       - "8000:8000"
     environment:
       - DOCQA_ENV=production
+    profiles:
+      - api # Only starts with: docker-compose --profile api up
     healthcheck:
-      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/docs')"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/docs" ]
       interval: 30s
       timeout: 10s
+      start_period: 5s
       retries: 3
-
-  demo:
-    build: .
-    command: streamlit run app.py --server.port=8501 --server.address=0.0.0.0
-    ports:
-      - "8501:8501"
-    depends_on:
-      - api
-    environment:
-      - DOCQA_API_URL=http://api:8000
+    restart: unless-stopped
